@@ -18,7 +18,7 @@ import (
 )
 
 // The oldest Go that the exercises accept.
-const minGoMajor, minGoMinor = 1, 22
+const minGoMajor, minGoMinor = 1, 25
 
 // doctor checks that this computer is ready. It starts only command-line
 // tools with a version flag; it never opens a window.

@@ -418,8 +418,9 @@ func TestParseGoVersion(t *testing.T) {
 		ok      bool
 	}{
 		{"go version go1.26.3 linux/amd64", "go1.26.3", true, true},
-		{"go version go1.22.0 darwin/arm64", "go1.22.0", true, true},
-		{"go version go1.22 windows/amd64", "go1.22", true, true},
+		{"go version go1.25.0 darwin/arm64", "go1.25.0", true, true},
+		{"go version go1.25 windows/amd64", "go1.25", true, true},
+		{"go version go1.24.9 linux/amd64", "go1.24.9", false, true},
 		{"go version go1.21.13 linux/amd64", "go1.21.13", false, true},
 		{"go version go1.9.7 linux/amd64", "go1.9.7", false, true},
 		{"go version go1.27rc1 linux/amd64", "go1.27rc1", true, true},

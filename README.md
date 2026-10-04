@@ -8,7 +8,7 @@ You write Go code in your own editor.
 
 ## Install
 
-`zero` needs Go 1.22 or newer. Get Go from <https://go.dev/dl/>.
+`zero` needs Go 1.25 or newer. Get Go from <https://go.dev/dl/>.
 
 ```
 go install github.com/KalebHawkins/zero/cmd/zero@latest
@@ -46,7 +46,7 @@ Each failed check prints one sentence that says how to fix it.
 
 | Check | What it looks for | Needed |
 |---|---|---|
-| `go` | Go 1.22 or newer | required |
+| `go` | Go 1.25 or newer | required |
 | `git` | the `git` command | required |
 | `podman` | the `podman` command | optional |
 | `cc` | a C compiler: `cc`, `gcc` or `clang` | optional |

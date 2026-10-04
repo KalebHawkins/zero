@@ -160,3 +160,27 @@ func TestNetError(t *testing.T) {
 		t.Errorf("err = %v, want *NetError for %s", err, base)
 	}
 }
+
+func TestExerciseWithReference(t *testing.T) {
+	var queries []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		queries = append(queries, r.URL.Path+"?"+r.URL.RawQuery)
+		w.Write([]byte(`{"exercise": {"id": "life-2"}, "project": {"id": "life", "stage": 2, "stages": 2, "edit_all": ["rules.go"]},
+			"reference": [{"path": "rules.go", "content": "x", "mode": "edit"}]}`))
+	}))
+	defer srv.Close()
+	c := New(srv.URL, "t", "0.2.0")
+	if _, err := c.Exercise("life-2"); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := c.ExerciseWithReference("life-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"/api/exercises/life-2?", "/api/exercises/life-2?reference=1"}; len(queries) != 2 || queries[0] != want[0] || queries[1] != want[1] {
+		t.Errorf("requests = %q, want %q", queries, want)
+	}
+	if resp.Project == nil || resp.Project.ID != "life" || len(resp.Reference) != 1 {
+		t.Errorf("answer = %+v", resp)
+	}
+}

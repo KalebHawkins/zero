@@ -195,8 +195,22 @@ func (c *Client) PostDoctor(d spec.Doctor) error {
 // Exercise calls GET /api/exercises/{id}. The server marks the exercise
 // started.
 func (c *Client) Exercise(id string) (*spec.ExerciseResponse, error) {
+	return c.exercise(id, false)
+}
+
+// ExerciseWithReference calls GET /api/exercises/{id}?reference=1. For a
+// stage, the answer also holds the previous stage's reference solution.
+func (c *Client) ExerciseWithReference(id string) (*spec.ExerciseResponse, error) {
+	return c.exercise(id, true)
+}
+
+func (c *Client) exercise(id string, reference bool) (*spec.ExerciseResponse, error) {
 	var out spec.ExerciseResponse
-	if _, err := c.do(http.MethodGet, "/exercises/"+url.PathEscape(id), nil, &out); err != nil {
+	path := "/exercises/" + url.PathEscape(id)
+	if reference {
+		path += "?reference=1"
+	}
+	if _, err := c.do(http.MethodGet, path, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

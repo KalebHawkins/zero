@@ -16,8 +16,28 @@ import (
 // starter/go.mod is stored as go.mod.txt because a folder with a go.mod is a
 // module of its own and cannot be embedded.
 //
-//go:embed all:testdata/hello-world
+//go:embed all:testdata/hello-world all:testdata/life
 var fixtures embed.FS
+
+// life is the fake project "life" (two stages) and the exercise "wrap" that
+// its second stage uses. See testdata/life/README.txt.
+func life(t *testing.T) fs.FS {
+	t.Helper()
+	sub, err := fs.Sub(fixtures, "testdata/life")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sub
+}
+
+func lifeFile(t *testing.T, name string) string {
+	t.Helper()
+	b, err := fs.ReadFile(life(t), name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
 
 func helloWorld(t *testing.T) fs.FS {
 	t.Helper()
@@ -37,7 +57,7 @@ func fixture(t *testing.T, name string) string {
 	return string(b)
 }
 
-const testVersion = "0.1.0"
+const testVersion = "0.2.0"
 
 // harness runs commands in-process against a fake API. Nothing touches the
 // real home directory, and no browser is ever started: OpenBrowser only

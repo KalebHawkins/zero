@@ -67,16 +67,19 @@ type Next struct {
 	Title string `json:"title"`
 }
 
-// Report is the result of one test run.
+// Report is the result of one test run. Regressions is filled only in a
+// project: it lists the failing tests that no task of the current stage
+// names, so an earlier stage broke. OK is false when it is not empty.
 type Report struct {
-	Exercise   string       `json:"exercise"`
-	Checker    string       `json:"checker"`
-	OK         bool         `json:"ok"`
-	At         string       `json:"at"` // RFC 3339, UTC
-	DurationMS int64        `json:"duration_ms"`
-	CLI        string       `json:"cli"`
-	BuildError string       `json:"build_error"`
-	Tasks      []TaskResult `json:"tasks"`
+	Exercise    string       `json:"exercise"`
+	Checker     string       `json:"checker"`
+	OK          bool         `json:"ok"`
+	At          string       `json:"at"` // RFC 3339, UTC
+	DurationMS  int64        `json:"duration_ms"`
+	CLI         string       `json:"cli"`
+	BuildError  string       `json:"build_error"`
+	Tasks       []TaskResult `json:"tasks"`
+	Regressions []TestResult `json:"regressions,omitempty"`
 }
 
 // TaskResult is the result of one task in a Report.
@@ -87,7 +90,8 @@ type TaskResult struct {
 	Tests  []TestResult `json:"tests"`
 }
 
-// TestResult is the result of one test in a Report.
+// TestResult is the result of one test in a Report: a test of a task, or a
+// regression.
 type TestResult struct {
 	Name    string `json:"name"`
 	Status  string `json:"status"`
@@ -166,11 +170,41 @@ type TokenResponse struct {
 	User  User   `json:"user"`
 }
 
-// ExerciseResponse is the answer of GET /api/exercises/{id}.
+// ExerciseResponse is the answer of GET /api/exercises/{id}. Project is set
+// only for a stage of a project. Reference is sent only with ?reference=1:
+// the whole project as it stands after the previous stage.
 type ExerciseResponse struct {
-	Exercise Exercise `json:"exercise"`
-	Files    []File   `json:"files"`
-	Readme   string   `json:"readme"`
+	Exercise  Exercise `json:"exercise"`
+	Files     []File   `json:"files"`
+	Readme    string   `json:"readme"`
+	Project   *Project `json:"project,omitempty"`
+	Uses      []Use    `json:"uses,omitempty"`
+	Reference []File   `json:"reference,omitempty"`
+}
+
+// Project says where a stage stands in its project. All stages of a project
+// share the folder <workspace>/<ID>/. EditAll is every edit file of stages 1
+// to Stage; these are the files `zero submit` uploads.
+type Project struct {
+	ID      string   `json:"id"`
+	Title   string   `json:"title"`
+	Stage   int      `json:"stage"`
+	Stages  int      `json:"stages"`
+	EditAll []string `json:"edit_all"`
+}
+
+// Use names a finished exercise whose files a stage may copy into the
+// project with `zero use`.
+type Use struct {
+	Exercise string `json:"exercise"`
+	Copy     []Copy `json:"copy"`
+}
+
+// Copy is one file of a Use. From is a path in the exercise folder; To is a
+// path in the project folder.
+type Copy struct {
+	From string `json:"from"`
+	To   string `json:"to"`
 }
 
 // SubmitRequest is the body of POST /api/exercises/{id}/submit.
@@ -221,10 +255,14 @@ type ExerciseState struct {
 }
 
 // Saved is the content of .zero/exercise.json in an exercise folder: the
-// exercise, and the path and mode of every file `zero start` wrote.
+// exercise, and the path and mode of every file `zero start` wrote. In a
+// project folder it describes the current stage, and Project and Uses hold
+// what the API sent for that stage.
 type Saved struct {
 	Exercise Exercise  `json:"exercise"`
 	Files    []FileRef `json:"files"`
+	Project  *Project  `json:"project,omitempty"`
+	Uses     []Use     `json:"uses,omitempty"`
 }
 
 // FileRef is a File without its content.

@@ -1,0 +1,12 @@
+{
+  "id": "life-1", "kind": "stage", "project": "life", "stage": 1,
+  "title": "The rule", "lead": "Decide whether one cell lives.",
+  "subject": "world", "minutes": 10, "checker": "go-test",
+  "edit": ["rules.go"],
+  "given": [{ "path": "stage1_test.go", "note": "the tests" }, { "path": "go.mod", "note": "names the module" }],
+  "show": "rules.go",
+  "tasks": [
+    { "n": 1, "title": "Apply the rule", "html": "…", "text": "Make Next follow the rule.", "tests": ["TestNext"] }
+  ],
+  "hints": [{ "title": "The rule", "html": "…", "text": "Three neighbors make a cell. Two keep a live one." }]
+}

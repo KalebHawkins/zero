@@ -13,9 +13,11 @@ import (
 	"github.com/KalebHawkins/zero/spec"
 )
 
-// start gets an exercise and writes it into the workspace.
+// start gets an exercise and writes it into the workspace. A stage of a
+// project goes into the project's shared folder.
 func (a *app) start() error {
 	force := a.takeFlag("--force")
+	reference := a.takeFlag("--reference")
 	if len(a.args) != 1 || strings.HasPrefix(a.args[0], "-") {
 		return usage("zero start needs one exercise id. Example: zero start hello-world")
 	}
@@ -24,10 +26,21 @@ func (a *app) start() error {
 	if err != nil {
 		return err
 	}
-	resp, err := client.Exercise(id)
+	var resp *spec.ExerciseResponse
+	if reference {
+		resp, err = client.ExerciseWithReference(id)
+	} else {
+		resp, err = client.Exercise(id)
+	}
 	var apiErr *api.Error
-	if errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound {
-		return fail("%s", joinSentence(apiErr.Message, "Copy the id from the exercise page on "+cfg.APIURL+"."))
+	if errors.As(err, &apiErr) {
+		switch {
+		case apiErr.Status == http.StatusNotFound:
+			return fail("%s", joinSentence(apiErr.Message, "Copy the id from the exercise page on "+cfg.APIURL+"."))
+		case apiErr.Status == http.StatusConflict && apiErr.Code == "stage_locked":
+			// The server's sentence names the stage to pass first.
+			return fail("%s", apiErr.Message)
+		}
 	}
 	if err != nil {
 		return err
@@ -35,14 +48,40 @@ func (a *app) start() error {
 	if resp.Exercise.ID == "" {
 		return fail("%s sent no exercise for %q. Check that api_url is the site address: zero config list", cfg.APIURL, id)
 	}
-	res, err := workspace.Write(cfg.Workspace, resp, force)
+	if reference && resp.Project == nil {
+		return usage("%s is not a project stage, so it has no reference to lay down. Run: zero start %s", id, id)
+	}
+	var res *workspace.WriteResult
+	if reference {
+		res, err = workspace.WriteWithReference(cfg.Workspace, resp, force)
+	} else {
+		res, err = workspace.Write(cfg.Workspace, resp, force)
+	}
+	var exists *workspace.ExistsError
+	if errors.As(err, &exists) {
+		return fail("Not started: these files in %s hold your work: %s. The reference would replace them. To replace them anyway, run: zero start %s --reference --force",
+			exists.Dir, strings.Join(exists.Paths, ", "), id)
+	}
 	if err != nil {
 		return fail("Cannot write the exercise into %s: %v. Choose a folder you can write with: zero config set workspace <folder>", cfg.Workspace, err)
 	}
 
-	a.out.line("%s is ready in %s", a.out.bold(resp.Exercise.Title), res.Dir)
-	for _, p := range res.Kept {
-		a.out.line("Kept your %s. To replace it with the starter file, run: zero start %s --force", p, id)
+	if p := resp.Project; p != nil {
+		a.out.line("%s, stage %d of %d: %s is ready in %s", a.out.bold(p.Title), p.Stage, p.Stages, a.out.bold(resp.Exercise.Title), res.Dir)
+		if len(res.Reference) > 0 {
+			a.out.line("Laid down the reference solution of stage %d: %d files.", p.Stage-1, len(res.Reference))
+		}
+		for _, f := range res.Kept {
+			a.out.line("Kept your %s.", f)
+		}
+		if len(resp.Uses) > 0 {
+			a.out.line("This stage uses files from another exercise. To see them, run: zero use")
+		}
+	} else {
+		a.out.line("%s is ready in %s", a.out.bold(resp.Exercise.Title), res.Dir)
+		for _, f := range res.Kept {
+			a.out.line("Kept your %s. To replace it with the starter file, run: zero start %s --force", f, id)
+		}
 	}
 	a.out.blank()
 	a.out.line("Next:")
@@ -65,11 +104,12 @@ func (a *app) exercise() (string, *spec.Saved, error) {
 
 // runTests runs the checker and prints the result. submitting says that
 // `zero submit` asked, so a pass does not end with "Run: zero submit".
-func (a *app) runTests(dir string, ex spec.Exercise, submitting bool) (spec.Report, error) {
+func (a *app) runTests(dir string, saved *spec.Saved, submitting bool) (spec.Report, error) {
+	ex := saved.Exercise
 	if ex.Checker != spec.CheckerGoTest {
 		return spec.Report{}, fail("This exercise uses the checker %q, which zero %s does not know. Install the newest zero.", ex.Checker, a.Version)
 	}
-	rep, err := check.GoTest(dir, ex, a.Version, a.Now)
+	rep, err := check.GoTest(dir, ex, saved.Project != nil, a.Version, a.Now)
 	if errors.Is(err, check.ErrNoGo) {
 		return rep, fail("The go command was not found. Install Go, then run: zero doctor")
 	}
@@ -117,9 +157,21 @@ func (a *app) printReport(ex spec.Exercise, rep spec.Report, submitting bool) {
 			}
 		}
 	}
+	if len(rep.Regressions) > 0 {
+		p.blank()
+		p.line("An earlier stage broke:")
+		for _, test := range rep.Regressions {
+			p.line("    %s %s", p.red(markFail), test.Name)
+			if test.Message != "" {
+				p.line("%s", indent(test.Message, "        "))
+			}
+		}
+	}
 	p.blank()
 	count := fmt.Sprintf("Tasks passed: %d of %d.", passed, len(rep.Tasks))
 	switch {
+	case len(rep.Regressions) > 0:
+		p.line("%s An earlier stage broke. Fix the earlier stage first, then run: zero test", count)
 	case rep.OK && submitting:
 		p.line("%s Every test passes.", count)
 	case rep.OK:
@@ -140,7 +192,7 @@ func (a *app) test() error {
 	if err != nil {
 		return err
 	}
-	rep, err := a.runTests(dir, saved.Exercise, false)
+	rep, err := a.runTests(dir, saved, false)
 	if err != nil {
 		return err
 	}
@@ -165,17 +217,22 @@ func (a *app) submit() error {
 	if err != nil {
 		return err
 	}
-	rep, err := a.runTests(dir, saved.Exercise, true)
+	// Read the files first, so a missing one is named before the tests run.
+	files, err := workspace.EditFiles(dir, saved)
+	var missing *workspace.MissingError
+	if errors.As(err, &missing) {
+		return fail("Not submitted: %s is missing from %s. A project submits every file you edit in it. Put the file back, then run: zero submit", missing.Path, dir)
+	}
+	if err != nil {
+		return fail("Cannot read your files: %v. Get the missing file back with: zero start %s", err, saved.Exercise.ID)
+	}
+	rep, err := a.runTests(dir, saved, true)
 	if err != nil {
 		return err
 	}
 	if !rep.OK {
 		a.out.line("Not submitted: the tests do not pass yet.")
 		return silent
-	}
-	files, err := workspace.EditFiles(dir, saved)
-	if err != nil {
-		return fail("Cannot read your files: %v. Get the missing file back with: zero start %s", err, saved.Exercise.ID)
 	}
 	resp, err := client.Submit(saved.Exercise.ID, spec.SubmitRequest{Report: rep, Files: files})
 	if err != nil {

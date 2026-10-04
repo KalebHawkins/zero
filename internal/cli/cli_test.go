@@ -391,7 +391,7 @@ func TestDoctor(t *testing.T) {
 	h := newHarness(t)
 	_, out, _ := h.run("doctor")
 	wantContains(t, "doctor output", out,
-		"go ", "git ", "podman ", "editor ", "workspace ", "api ",
+		"go ", "git ", "podman ", "cc ", "editor ", "workspace ", "api ",
 		h.workspace+" is writable",
 		"Not signed in, so the site does not know this result. Run: zero login")
 	if len(h.fake.doctors) != 0 {

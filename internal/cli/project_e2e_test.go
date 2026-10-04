@@ -1,0 +1,217 @@
+package cli
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/KalebHawkins/zero/spec"
+)
+
+// TestProjectEndToEnd drives a two-stage project against the fake API with
+// the real go toolchain: the order lock, the shared folder, a regression,
+// zero use, submit, and --reference on an empty folder.
+func TestProjectEndToEnd(t *testing.T) {
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("the go command is not on PATH")
+	}
+	h := newHarness(t)
+	if err := h.fake.addContent(life(t)); err != nil {
+		t.Fatal(err)
+	}
+	h.signIn()
+	dir := filepath.Join(h.workspace, "life")
+
+	// Stage 2 is locked until stage 1 is passed. The server's sentence is
+	// printed, and nothing is written.
+	code, _, stderr := h.run("start", "life-2")
+	if code != 1 || strings.TrimSpace(stderr) != "Stage 2 of Life opens when stage 1 is passed. Finish it first: zero start life-1" {
+		t.Errorf("locked stage: code %d, stderr %q", code, stderr)
+	}
+	if _, err := os.Stat(dir); err == nil {
+		t.Error("the locked stage wrote a folder")
+	}
+
+	// Stage 1 goes into the project folder, not a folder named life-1.
+	out := h.ok("start", "life-1")
+	wantContains(t, "start life-1", out, "Life, stage 1 of 2: The rule is ready in "+dir, "cd "+dir)
+	if _, err := os.Stat(filepath.Join(h.workspace, "life-1")); err == nil {
+		t.Error("start wrote a folder named after the stage")
+	}
+	h.dir = dir
+
+	// The stub returns a zero value: a plain failing test, no regressions.
+	code, out, _ = h.run("test")
+	if code != 1 {
+		t.Fatalf("test on the stub: exit code %d\n%s", code, out)
+	}
+	wantContains(t, "stage 1 stub", out, "✗ Task 1: Apply the rule", "Next(false, 3) = false, want true",
+		"Tasks passed: 0 of 1. Fix the first failing task")
+	if strings.Contains(out, "An earlier stage broke") {
+		t.Errorf("stage 1 reported a regression:\n%s", out)
+	}
+
+	myRules := lifeFile(t, "life-1/solution/rules.go") + "\n// My notes.\n"
+	writeFile(t, filepath.Join(dir, "rules.go"), myRules)
+	out = h.ok("submit")
+	wantContains(t, "submit stage 1", out, "Submitted. The rule is finished.")
+
+	// Stage 2 keeps the learner's rules.go and adds its own files.
+	out = h.ok("start", "life-2")
+	wantContains(t, "start life-2", out, "Life, stage 2 of 2: Count the neighbors is ready in "+dir,
+		"This stage uses files from another exercise. To see them, run: zero use")
+	if strings.Contains(out, "Kept your") {
+		t.Errorf("stage 2 start says it kept a file, but every file it sends is new:\n%s", out)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "rules.go")); string(got) != myRules {
+		t.Errorf("stage 2 replaced the learner's rules.go:\n%s", got)
+	}
+	for _, name := range []string{"grid.go", "stage2_test.go", "stage1_test.go", "go.mod"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			t.Errorf("after stage 2 start: %v", err)
+		}
+	}
+
+	// The learner breaks stage 1's code. The stage 2 task fails, and the
+	// stage 1 test is reported as a regression.
+	writeFile(t, filepath.Join(dir, "rules.go"), lifeFile(t, "life-1/starter/rules.go"))
+	runs := len(h.fake.runs)
+	code, out, _ = h.run("test")
+	if code != 1 {
+		t.Fatalf("test with a regression: exit code %d\n%s", code, out)
+	}
+	t.Logf("zero test with a regression:\n%s", out)
+	wantContains(t, "regression output", out,
+		"✗ Task 1: Count with wrapping edges\n",
+		"An earlier stage broke:\n    ✗ TestNext\n        Next(false, 3) = false, want true\n",
+		"Tasks passed: 0 of 1. An earlier stage broke. Fix the earlier stage first, then run: zero test")
+	if len(h.fake.runs) != runs+1 {
+		t.Fatalf("the run was not posted")
+	}
+	rep := h.fake.runs[len(h.fake.runs)-1]
+	if rep.OK || rep.Exercise != "life-2" || len(rep.Regressions) != 1 || rep.Regressions[0].Name != "TestNext" ||
+		rep.Regressions[0].Status != spec.StatusFail || !strings.Contains(rep.Regressions[0].Message, "want true") {
+		t.Errorf("report = %+v", rep)
+	}
+	// With only the regression left, the task passes but ok stays false.
+	writeFile(t, filepath.Join(dir, "grid.go"), strings.Replace(lifeFile(t, "life-2/solution/grid.go"), "Wrap(", "wrapTmp(", -1)+
+		"\nfunc wrapTmp(i, n int) int { return ((i % n) + n) % n }\n")
+	code, out, _ = h.run("test")
+	if code != 1 {
+		t.Errorf("test with only a regression: exit code %d", code)
+	}
+	wantContains(t, "regression only", out, "✓ Task 1: Count with wrapping edges", "Tasks passed: 1 of 1. An earlier stage broke.")
+	if rep := h.fake.runs[len(h.fake.runs)-1]; rep.OK || rep.Tasks[0].Status != spec.StatusPass {
+		t.Errorf("report with only a regression: ok %v, task %q", rep.OK, rep.Tasks[0].Status)
+	}
+	code, out, _ = h.run("submit")
+	if code != 1 || !strings.Contains(out, "Not submitted") || len(h.fake.submits) != 1 {
+		t.Errorf("submit with a regression: code %d, %d submits\n%s", code, len(h.fake.submits), out)
+	}
+	writeFile(t, filepath.Join(dir, "rules.go"), myRules)
+	writeFile(t, filepath.Join(dir, "grid.go"), lifeFile(t, "life-2/starter/grid.go"))
+
+	// zero use: list, then each refusal, then the copy.
+	out = h.ok("use")
+	wantContains(t, "use list", out, "This stage can use:", "wrap", "wrap.go -> wrap.go", "zero use wrap")
+	code, _, stderr = h.run("use", "hello-world")
+	if code != 1 || !strings.HasPrefix(stderr, "This stage does not use hello-world.") {
+		t.Errorf("use of an exercise the stage does not use: code %d, %q", code, stderr)
+	}
+	code, _, stderr = h.run("use", "wrap")
+	wrapDir := filepath.Join(h.workspace, "wrap")
+	if code != 1 || !strings.Contains(stderr, wrapDir+" does not exist") || !strings.Contains(stderr, "zero start wrap") {
+		t.Errorf("use without the exercise folder: code %d, %q", code, stderr)
+	}
+	h.dir = h.home
+	code, _, stderr = h.run("use", "wrap")
+	if code != 1 || !strings.HasPrefix(stderr, "zero use works only inside a project stage") {
+		t.Errorf("use outside a project: code %d, %q", code, stderr)
+	}
+	h.ok("start", "wrap")
+	h.dir = wrapDir
+	code, _, stderr = h.run("use", "wrap")
+	if code != 1 || !strings.HasPrefix(stderr, "zero use works only inside a project stage. Wrap is a plain exercise.") {
+		t.Errorf("use inside a plain exercise: code %d, %q", code, stderr)
+	}
+	writeFile(t, filepath.Join(wrapDir, "wrap.go"), lifeFile(t, "wrap/solution/wrap.go"))
+	h.dir = dir
+	writeFile(t, filepath.Join(dir, "wrap.go"), "package life\n")
+	code, out, _ = h.run("use", "wrap")
+	if code != 1 || !strings.Contains(out, "Kept your wrap.go.") || !strings.Contains(out, "zero use wrap --force") {
+		t.Errorf("use over an existing file: code %d\n%s", code, out)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "wrap.go")); string(got) != "package life\n" {
+		t.Error("use overwrote wrap.go without --force")
+	}
+	os.Remove(filepath.Join(dir, "wrap.go"))
+	out = h.ok("use", "wrap")
+	wantContains(t, "use output", out, "✓ Copied wrap/wrap.go to wrap.go", "Next: zero test")
+	if got, _ := os.ReadFile(filepath.Join(dir, "wrap.go")); string(got) != lifeFile(t, "wrap/solution/wrap.go") {
+		t.Errorf("wrap.go = %q", got)
+	}
+
+	// Pass stage 2. submit uploads every edit_all file.
+	writeFile(t, filepath.Join(dir, "grid.go"), lifeFile(t, "life-2/solution/grid.go"))
+	out = h.ok("test")
+	wantContains(t, "stage 2 pass", out, "✓ Task 1: Count with wrapping edges", "Tasks passed: 1 of 1. Every test passes. Run: zero submit")
+	os.Rename(filepath.Join(dir, "rules.go"), filepath.Join(dir, "rules.go.bak"))
+	code, _, stderr = h.run("submit")
+	if code != 1 || !strings.Contains(stderr, "rules.go is missing") {
+		t.Errorf("submit without rules.go: code %d, %q", code, stderr)
+	}
+	os.Rename(filepath.Join(dir, "rules.go.bak"), filepath.Join(dir, "rules.go"))
+	out = h.ok("submit")
+	wantContains(t, "submit stage 2", out, "Submitted. Count the neighbors is finished.")
+	sub := h.fake.submits[len(h.fake.submits)-1]
+	want := []spec.File{
+		{Path: "rules.go", Content: myRules, Mode: spec.ModeEdit},
+		{Path: "grid.go", Content: lifeFile(t, "life-2/solution/grid.go"), Mode: spec.ModeEdit},
+	}
+	if !sub.Report.OK || sub.Report.Exercise != "life-2" || !reflect.DeepEqual(sub.Files, want) {
+		t.Errorf("stage 2 submission: report ok %v, files %+v", sub.Report.OK, sub.Files)
+	}
+
+	// --reference on an empty folder: a new computer.
+	other := filepath.Join(h.home, "elsewhere")
+	h.env["ZERO_WORKSPACE"] = other
+	h.dir = h.home
+	out = h.ok("start", "life-2", "--reference")
+	newDir := filepath.Join(other, "life")
+	wantContains(t, "reference start", out, "Laid down the reference solution of stage 1: 3 files.", "is ready in "+newDir)
+	if got, _ := os.ReadFile(filepath.Join(newDir, "rules.go")); string(got) != lifeFile(t, "life-1/solution/rules.go") {
+		t.Errorf("rules.go is not the reference: %q", got)
+	}
+	if got, _ := os.ReadFile(filepath.Join(newDir, "grid.go")); string(got) != lifeFile(t, "life-2/starter/grid.go") {
+		t.Errorf("grid.go is not the stage 2 stub: %q", got)
+	}
+	if !reflect.DeepEqual(h.fake.references, []string{"life-2"}) {
+		t.Errorf("reference requests = %v", h.fake.references)
+	}
+	// The stage starts from the reference: stage 1 passes, stage 2's task fails.
+	h.dir = newDir
+	code, out, _ = h.run("test")
+	if code != 1 || strings.Contains(out, "An earlier stage broke") || !strings.Contains(out, "✗ Task 1: Count with wrapping edges") {
+		t.Errorf("test after --reference: code %d\n%s", code, out)
+	}
+	// A second --reference refuses to replace the learner's work.
+	writeFile(t, filepath.Join(newDir, "rules.go"), myRules)
+	code, _, stderr = h.run("start", "life-2", "--reference")
+	if code != 1 || !strings.Contains(stderr, "hold your work: rules.go") || !strings.Contains(stderr, "zero start life-2 --reference --force") {
+		t.Errorf("reference over work: code %d, %q", code, stderr)
+	}
+	if got, _ := os.ReadFile(filepath.Join(newDir, "rules.go")); string(got) != myRules {
+		t.Error("--reference replaced rules.go without --force")
+	}
+	h.ok("start", "life-2", "--reference", "--force")
+	if got, _ := os.ReadFile(filepath.Join(newDir, "rules.go")); string(got) != lifeFile(t, "life-1/solution/rules.go") {
+		t.Error("--reference --force did not lay down rules.go")
+	}
+	code, _, stderr = h.run("start", "hello-world", "--reference")
+	if code != 2 || !strings.Contains(stderr, "is not a project stage") {
+		t.Errorf("--reference on a plain exercise: code %d, %q", code, stderr)
+	}
+}

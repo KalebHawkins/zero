@@ -41,7 +41,7 @@ The command then prints `Signed in as <your name>`.
 zero doctor
 ```
 
-`doctor` runs six checks.
+`doctor` runs seven checks.
 Each failed check prints one sentence that says how to fix it.
 
 | Check | What it looks for | Needed |
@@ -49,15 +49,17 @@ Each failed check prints one sentence that says how to fix it.
 | `go` | Go 1.22 or newer | required |
 | `git` | the `git` command | required |
 | `podman` | the `podman` command | optional |
+| `cc` | a C compiler: `cc`, `gcc` or `clang` | optional |
 | `editor` | the `editor` setting, then `$EDITOR`, then the `code` command | optional |
 | `workspace` | the workspace folder exists and you can write in it | required |
 | `api` | the site answers | required |
 
 A required check that fails shows ✗, and `zero doctor` exits with code 1.
-`podman` and `editor` are optional checks.
+`podman`, `cc` and `editor` are optional checks.
 A missing optional tool shows `-` and the word "optional".
 It is a note, not a failure: `zero doctor` still says the computer is ready.
 You need podman only when an exercise asks for containers.
+You need a C compiler only for window exercises on Linux.
 
 To report a problem, run `zero doctor --report` and paste the output into the issue.
 
@@ -123,12 +125,13 @@ Then it prints the next exercise.
 | `zero logout` | Ends the sign-in for the current site: asks the site to end the token, then removes it from this computer. |
 | `zero whoami` | Shows who is signed in. |
 | `zero doctor` | Checks that this computer is ready. `--report` prints a plain block for an issue. |
-| `zero start <id>` | Gets an exercise and writes it into the workspace. `--force` also replaces the files you edited. |
+| `zero start <id>` | Gets an exercise or a project stage and writes it into the workspace. `--force` also replaces the files you edited. `--reference` first lays down the previous stage's reference solution. |
 | `zero test` | Runs the tests and prints each task with ✓ or ✗. Exits with code 1 when a task fails. |
 | `zero run` | Runs the exercise's program. |
 | `zero hint` | Prints the next hint. One hint per call. |
 | `zero submit` | Runs the tests and, when they pass, finishes the exercise. |
 | `zero next` | Shows what comes next on your path. |
+| `zero use <id>` | Copies files from a finished exercise into the current project. With no id, lists what the stage can use. `--force` replaces files you already have. |
 | `zero config list` | Shows every setting, its value, and where the value comes from. |
 | `zero config get <key>` | Prints one setting. |
 | `zero config set <key> <value>` | Saves one setting in the config file. |
@@ -142,6 +145,77 @@ They find the exercise by looking for `.zero/exercise.json` in the current folde
 
 `zero start` never replaces a file you edit unless you add `--force`.
 It always refreshes the other files, such as the tests.
+
+## Projects
+
+A project is one program built in stages.
+Each stage is an exercise with its own tasks.
+
+### One folder for every stage
+
+All stages of a project share one folder: `~/zero/<project>/`.
+
+```
+zero start game-of-life-1
+zero start game-of-life-2
+```
+
+Both commands write into `~/zero/game-of-life/`.
+`zero start` writes the stage's new tests and new files.
+It never replaces a file you already wrote.
+Your code from stage 1 stays in place for stage 2.
+
+A stage opens when you pass the stage before it.
+Until then, `zero start` prints which stage to finish first.
+
+On a new computer, or after you lose the folder, add `--reference`:
+
+```
+zero start game-of-life-4 --reference
+```
+
+This first lays down the reference solution of stage 3, then the files of stage 4.
+It refuses to replace files that hold your work.
+Add `--force` to replace them anyway.
+
+### Use a finished exercise
+
+Some stages use code from an earlier exercise.
+`zero use` copies those files into the project:
+
+```
+zero use the-game-loop
+```
+
+```
+✓ Copied the-game-loop/loop.go to cmd/life-window/loop.go
+```
+
+Run `zero use` with no id to see what the current stage can use.
+The exercise folder must exist. If it does not, run `zero start <exercise>` and finish it first.
+`zero use` does not replace a file you already have unless you add `--force`.
+
+### Regressions
+
+`zero test` runs every test in the project, not only the tests of the current stage.
+The current stage's tests decide its tasks.
+A failing test from an earlier stage is a regression: a change broke code that worked.
+
+```
+✗ Task 1: Count with wrapping edges
+    ✗ TestCount
+        Count(grid, 1, 1) = 0, want 2
+
+An earlier stage broke:
+    ✗ TestNext
+        Next(false, 3) = false, want true
+
+Tasks passed: 0 of 1. An earlier stage broke. Fix the earlier stage first, then run: zero test
+```
+
+Fix the earlier stage first.
+`zero submit` refuses while any regression is left.
+When every test passes, `zero submit` sends every file you edit in the project, from every stage.
 
 ## Configuration
 
@@ -256,6 +330,8 @@ The next write to the file stores it under `tokens`.
 
 ## The exercise folder
 
+A plain exercise has a folder of its own:
+
 ```
 ~/zero/
   hello-world/
@@ -267,6 +343,9 @@ The next write to the file stores it under `tokens`.
     go.mod
     cmd/hello/main.go      the program that zero run starts
 ```
+
+A project has one folder for all of its stages.
+There `.zero/exercise.json` and `README.txt` describe the current stage.
 
 ## Development
 
@@ -281,6 +360,7 @@ go test ./...
 `go test` includes an end-to-end test.
 It starts a fake site in the test, then runs login, start, test and submit against it.
 That test runs the real `go` command on the hello-world exercise.
+A second test does the same for a fake two-stage project: the stage lock, a regression, `zero use`, submit and `--reference`.
 
 The package `spec` holds the JSON types that the command and the site share.
 

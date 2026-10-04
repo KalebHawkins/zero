@@ -1,0 +1,13 @@
+{
+  "id": "life-2", "kind": "stage", "project": "life", "stage": 2,
+  "uses": [ { "exercise": "wrap", "copy": [ { "from": "wrap.go", "to": "wrap.go" } ] } ],
+  "title": "Count the neighbors", "lead": "Count the live neighbors on a grid whose edges wrap.",
+  "subject": "world", "minutes": 15, "checker": "go-test",
+  "edit": ["grid.go"],
+  "given": [{ "path": "stage2_test.go", "note": "the tests" }],
+  "show": "grid.go",
+  "tasks": [
+    { "n": 1, "title": "Count with wrapping edges", "html": "…", "text": "Make Count count the eight neighbors.", "tests": ["TestCount"] }
+  ],
+  "hints": [{ "title": "Edges", "html": "…", "text": "Wrap, from the wrap exercise, folds a row or column back onto the grid." }]
+}

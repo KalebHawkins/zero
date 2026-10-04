@@ -167,6 +167,8 @@ func (a *app) dispatch(command string) error {
 		return a.noArgs(command, a.submit)
 	case "next":
 		return a.noArgs(command, a.next)
+	case "use":
+		return a.use()
 	}
 	return usage("zero has no command named %q. Run: zero help", command)
 }
@@ -285,12 +287,16 @@ Set up:
                              --report prints a block to paste into an issue
 
 Practice:
-  start <id> [--force]       get an exercise
+  start <id> [--force]       get an exercise, or the next stage of a project
                              --force replaces your files with the starter files
+  start <id> --reference     lay down the previous stage's reference first,
+                             for a new computer or a lost folder
   test                       run the tests of the exercise in this folder
   run                        run the program of the exercise in this folder
   hint                       show the next hint
   submit                     finish the exercise when every test passes
+  use [<id>] [--force]       copy files from a finished exercise into this
+                             project; with no id, list what the stage uses
   next                       show what comes next on your path
 
 Settings:

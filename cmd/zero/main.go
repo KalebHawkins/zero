@@ -10,7 +10,7 @@ import (
 
 // version is the release. A build can replace it with
 // -ldflags "-X main.version=1.2.3".
-var version = "0.1.0"
+var version = "0.2.0"
 
 func main() {
 	dir, err := os.Getwd()

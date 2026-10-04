@@ -91,7 +91,7 @@ func TestEndToEnd(t *testing.T) {
 			t.Errorf("check %s failed without a fix", c.Name)
 		}
 	}
-	if got := strings.Join(names, " "); got != "go git podman editor workspace api" {
+	if got := strings.Join(names, " "); got != "go git podman cc editor workspace api" {
 		t.Errorf("checks = %q", got)
 	}
 	if doc.CLI != testVersion || doc.At != "2026-10-04T15:04:09Z" {

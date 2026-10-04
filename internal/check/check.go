@@ -2,6 +2,10 @@
 //
 // The only checker is "go-test": it runs `go test -json ./...` in the
 // exercise folder and reads the stream of JSON events.
+//
+// Starter files return zero values, so the usual first run is a set of
+// plain failing tests. A test binary that stops early, after a panic, is
+// still handled: the tests it never ran are reported as not run.
 package check
 
 import (
@@ -181,6 +185,46 @@ func Report(ex spec.Exercise, res *Result, stderr string, failed bool, m Meta) s
 	return rep
 }
 
+// ProjectReport is Report for a stage of a project. The tests named in the
+// stage's tasks decide the tasks, as in Report. Every other test that
+// failed, or started and never finished, is a regression: an earlier stage
+// broke. A regression makes the report not OK. When the code does not
+// compile, there are no regressions: every task fails already.
+func ProjectReport(ex spec.Exercise, res *Result, stderr string, failed bool, m Meta) spec.Report {
+	rep := Report(ex, res, stderr, failed, m)
+	if rep.BuildError != "" {
+		return rep
+	}
+	rep.Regressions = Regressions(ex, res)
+	if len(rep.Regressions) > 0 {
+		rep.OK = false
+	}
+	return rep
+}
+
+// Regressions lists the failing top-level tests that no task of ex names,
+// in the order they ran. A subtest counts through its parent.
+func Regressions(ex spec.Exercise, res *Result) []spec.TestResult {
+	named := map[string]bool{}
+	for _, task := range ex.Tasks {
+		for _, name := range task.Tests {
+			named[name] = true
+		}
+	}
+	var out []spec.TestResult
+	for _, name := range res.Order {
+		if named[name] || strings.Contains(name, "/") {
+			continue
+		}
+		switch res.Tests[name].Status {
+		case spec.StatusPass, spec.StatusSkip:
+			continue
+		}
+		out = append(out, testResult(res, name))
+	}
+	return out
+}
+
 func testResult(res *Result, name string) spec.TestResult {
 	t := res.Tests[name]
 	if t == nil {
@@ -330,8 +374,10 @@ func buildError(res *Result, stderr string) string {
 	return text
 }
 
-// GoTest runs `go test -json ./...` in dir and returns the Report.
-func GoTest(dir string, ex spec.Exercise, cliVersion string, now func() time.Time) (spec.Report, error) {
+// GoTest runs `go test -json ./...` in dir and returns the Report. project
+// says that dir is a project folder: failing tests outside the current
+// stage's tasks are then reported as regressions.
+func GoTest(dir string, ex spec.Exercise, project bool, cliVersion string, now func() time.Time) (spec.Report, error) {
 	if _, err := exec.LookPath("go"); err != nil {
 		return spec.Report{}, ErrNoGo
 	}
@@ -351,5 +397,8 @@ func GoTest(dir string, ex spec.Exercise, cliVersion string, now func() time.Tim
 		return spec.Report{}, err
 	}
 	meta := Meta{At: start, Duration: now().Sub(start), CLI: cliVersion}
+	if project {
+		return ProjectReport(ex, res, stderr.String(), runErr != nil, meta), nil
+	}
 	return Report(ex, res, stderr.String(), runErr != nil, meta), nil
 }

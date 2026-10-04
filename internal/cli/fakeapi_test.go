@@ -44,6 +44,24 @@ type fakeAPI struct {
 	logouts    []string // the Authorization header of every POST /api/cli/logout
 	passed     bool
 	userAgents map[string]bool
+
+	// More exercises and project stages, beside the main exercise above.
+	entries    map[string]*fakeEntry
+	projects   map[string]string // project id -> title
+	passedIDs  map[string]bool   // entries that were submitted
+	references []string          // ids requested with ?reference=1
+}
+
+// fakeEntry is one more exercise, or a stage of a project.
+type fakeEntry struct {
+	exercise spec.Exercise
+	files    []spec.File
+	readme   string
+	solution []spec.File // solution/, laid out like starter/
+
+	project string // empty for a plain exercise
+	stage   int
+	uses    []spec.Use
 }
 
 // newFakeAPI loads the exercise from a folder laid out like the platform's
@@ -56,21 +74,98 @@ func newFakeAPI(content fs.FS, prefix string) (*fakeAPI, error) {
 		token:      "fake-token-1",
 		next:       &spec.Next{Kind: "exercise", ID: "variables", Title: "Variables"},
 		userAgents: map[string]bool{},
+		entries:    map[string]*fakeEntry{},
+		projects:   map[string]string{},
+		passedIDs:  map[string]bool{},
 	}
+	e, err := loadEntry(content)
+	if err != nil {
+		return nil, err
+	}
+	f.exercise, f.files, f.readme = e.exercise, e.files, e.readme
+	return f, nil
+}
+
+// addContent loads every folder of content that holds an exercise.json as
+// one more exercise or stage, and project.json as the project's title.
+func (f *fakeAPI) addContent(content fs.FS) error {
+	if raw, err := fs.ReadFile(content, "project.json"); err == nil {
+		var p struct{ ID, Title string }
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return err
+		}
+		f.projects[p.ID] = p.Title
+	}
+	dirs, err := fs.ReadDir(content, ".")
+	if err != nil {
+		return err
+	}
+	for _, d := range dirs {
+		if !d.IsDir() {
+			continue
+		}
+		sub, err := fs.Sub(content, d.Name())
+		if err != nil {
+			return err
+		}
+		e, err := loadEntry(sub)
+		if err != nil {
+			return fmt.Errorf("%s: %w", d.Name(), err)
+		}
+		f.entries[e.exercise.ID] = e
+	}
+	return nil
+}
+
+// loadEntry reads exercise.json, starter/ and solution/ of one exercise.
+func loadEntry(content fs.FS) (*fakeEntry, error) {
+	e := &fakeEntry{}
 	raw, err := fs.ReadFile(content, "exercise.json")
 	if err != nil {
 		return nil, err
 	}
 	// exercise.json has more fields than the API sends. Decoding into
 	// spec.Exercise keeps exactly the fields of the SPEC.
-	if err := json.Unmarshal(raw, &f.exercise); err != nil {
+	if err := json.Unmarshal(raw, &e.exercise); err != nil {
 		return nil, err
 	}
+	var stage struct {
+		Project string     `json:"project"`
+		Stage   int        `json:"stage"`
+		Uses    []spec.Use `json:"uses"`
+	}
+	if err := json.Unmarshal(raw, &stage); err != nil {
+		return nil, err
+	}
+	e.project, e.stage, e.uses = stage.Project, stage.Stage, stage.Uses
 	edit := map[string]bool{}
-	for _, p := range f.exercise.Edit {
+	for _, p := range e.exercise.Edit {
 		edit[p] = true
 	}
-	err = fs.WalkDir(content, "starter", func(p string, d fs.DirEntry, err error) error {
+	if e.files, err = readTree(content, "starter", edit); err != nil {
+		return nil, err
+	}
+	if e.solution, err = readTree(content, "solution", edit); err != nil {
+		return nil, err
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s\n%s\n\n%s\n\n", e.exercise.Title, strings.Repeat("=", len(e.exercise.Title)), e.exercise.Lead)
+	for _, t := range e.exercise.Tasks {
+		fmt.Fprintf(&b, "Task %d: %s\n  %s\n  Checked by %s\n\n", t.N, t.Title, t.Text, strings.Join(t.Tests, ", "))
+	}
+	b.WriteString("Commands\n  zero test     run the tests\n  zero run      see it\n  zero hint     show a hint\n  zero submit   finish, when every test passes\n")
+	e.readme = b.String()
+	return e, nil
+}
+
+// readTree reads the files under dir. A missing dir is an empty list.
+func readTree(content fs.FS, dir string, edit map[string]bool) ([]spec.File, error) {
+	var files []spec.File
+	if _, err := fs.Stat(content, dir); err != nil {
+		return nil, nil
+	}
+	err := fs.WalkDir(content, dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
@@ -78,7 +173,7 @@ func newFakeAPI(content fs.FS, prefix string) (*fakeAPI, error) {
 		if err != nil {
 			return err
 		}
-		name := strings.TrimPrefix(p, "starter/")
+		name := strings.TrimPrefix(p, dir+"/")
 		if path.Base(name) == "go.mod.txt" {
 			name = strings.TrimSuffix(name, ".txt")
 		}
@@ -86,22 +181,11 @@ func newFakeAPI(content fs.FS, prefix string) (*fakeAPI, error) {
 		if edit[name] {
 			mode = spec.ModeEdit
 		}
-		f.files = append(f.files, spec.File{Path: name, Content: string(b), Mode: mode})
+		files = append(files, spec.File{Path: name, Content: string(b), Mode: mode})
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	sort.Slice(f.files, func(i, j int) bool { return f.files[i].Path < f.files[j].Path })
-
-	var b strings.Builder
-	fmt.Fprintf(&b, "%s\n%s\n\n%s\n\n", f.exercise.Title, strings.Repeat("=", len(f.exercise.Title)), f.exercise.Lead)
-	for _, t := range f.exercise.Tasks {
-		fmt.Fprintf(&b, "Task %d: %s\n  %s\n  Checked by %s\n\n", t.N, t.Title, t.Text, strings.Join(t.Tests, ", "))
-	}
-	b.WriteString("Commands\n  zero test     run the tests\n  zero run      see it\n  zero hint     show a hint\n  zero submit   finish, when every test passes\n")
-	f.readme = b.String()
-	return f, nil
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	return files, err
 }
 
 func (f *fakeAPI) handler() http.Handler {
@@ -243,7 +327,7 @@ func (f *fakeAPI) doctor(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *fakeAPI) known(w http.ResponseWriter, r *http.Request) bool {
-	if id := r.PathValue("id"); id != f.exercise.ID {
+	if id := r.PathValue("id"); id != f.exercise.ID && f.entries[id] == nil {
 		sendError(w, http.StatusNotFound, "not_found", fmt.Sprintf("There is no exercise with the id %q.", id))
 		return false
 	}
@@ -254,10 +338,49 @@ func (f *fakeAPI) getExercise(w http.ResponseWriter, r *http.Request) {
 	if !f.known(w, r) {
 		return
 	}
+	id := r.PathValue("id")
 	f.mu.Lock()
-	f.started = append(f.started, f.exercise.ID)
-	f.mu.Unlock()
-	send(w, http.StatusOK, spec.ExerciseResponse{Exercise: f.exercise, Files: f.files, Readme: f.readme})
+	defer f.mu.Unlock()
+	e := f.entries[id]
+	if e == nil {
+		f.started = append(f.started, f.exercise.ID)
+		send(w, http.StatusOK, spec.ExerciseResponse{Exercise: f.exercise, Files: f.files, Readme: f.readme})
+		return
+	}
+	resp := spec.ExerciseResponse{Exercise: e.exercise, Files: e.files, Readme: e.readme}
+	if e.project != "" {
+		title := f.projects[e.project]
+		prev := fmt.Sprintf("%s-%d", e.project, e.stage-1)
+		if e.stage > 1 && !f.passedIDs[prev] {
+			sendError(w, http.StatusConflict, "stage_locked",
+				fmt.Sprintf("Stage %d of %s opens when stage %d is passed. Finish it first: zero start %s", e.stage, title, e.stage-1, prev))
+			return
+		}
+		p := &spec.Project{ID: e.project, Title: title, Stage: e.stage, EditAll: []string{}}
+		seen := map[string]bool{}
+		for _, other := range f.entries {
+			if other.project == e.project {
+				p.Stages = max(p.Stages, other.stage)
+			}
+		}
+		for n := 1; n <= e.stage; n++ {
+			for _, path := range f.entries[fmt.Sprintf("%s-%d", e.project, n)].exercise.Edit {
+				if !seen[path] {
+					seen[path] = true
+					p.EditAll = append(p.EditAll, path)
+				}
+			}
+		}
+		resp.Project, resp.Uses = p, e.uses
+		if r.URL.Query().Get("reference") == "1" {
+			f.references = append(f.references, id)
+			if e.stage > 1 {
+				resp.Reference = f.entries[prev].solution
+			}
+		}
+	}
+	f.started = append(f.started, id)
+	send(w, http.StatusOK, resp)
 }
 
 func (f *fakeAPI) postRun(w http.ResponseWriter, r *http.Request) {
@@ -288,7 +411,11 @@ func (f *fakeAPI) submit(w http.ResponseWriter, r *http.Request) {
 	}
 	f.mu.Lock()
 	f.submits = append(f.submits, in)
-	f.passed = true
+	if id := r.PathValue("id"); f.entries[id] != nil {
+		f.passedIDs[id] = true
+	} else {
+		f.passed = true
+	}
 	next := f.next
 	f.mu.Unlock()
 	send(w, http.StatusOK, spec.SubmitResponse{Passed: true, Next: next})

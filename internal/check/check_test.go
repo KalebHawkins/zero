@@ -226,3 +226,51 @@ func TestParseKeepsLinesThatAreNotJSON(t *testing.T) {
 		t.Errorf("build_error = %q", rep.BuildError)
 	}
 }
+
+// In a project, failing tests that the stage's tasks do not name are
+// regressions. Passing and skipped tests are not.
+func TestRegressions(t *testing.T) {
+	res := parseFixture(t, "subtests.json")
+	stage := spec.Exercise{ID: "calc-2", Checker: spec.CheckerGoTest, Tasks: []spec.Task{
+		{N: 1, Title: "Messages", Tests: []string{"TestMulti"}},
+	}}
+	rep := ProjectReport(stage, res, "", true, meta)
+	if rep.OK {
+		t.Error("ok is true with regressions")
+	}
+	var names []string
+	for _, r := range rep.Regressions {
+		names = append(names, r.Name)
+		if r.Status != spec.StatusFail || r.Message == "" {
+			t.Errorf("regression %+v", r)
+		}
+	}
+	// TestSkip is skipped, TestAdd/zero passes inside a failing parent, and
+	// TestAfter never ran: none of those is listed on its own.
+	if got := strings.Join(names, " "); got != "TestAdd TestDiv" {
+		t.Errorf("regressions = %q, want TestAdd TestDiv", got)
+	}
+	if !strings.HasPrefix(rep.Regressions[0].Message, "small: checking 1 + 2") {
+		t.Errorf("TestAdd message = %q", rep.Regressions[0].Message)
+	}
+
+	// A passing test outside the tasks is no regression, and the plain
+	// Report never fills the list.
+	pass := parseFixture(t, "pass.json")
+	other := spec.Exercise{ID: "x", Checker: spec.CheckerGoTest, Tasks: []spec.Task{{N: 1, Title: "Other", Tests: []string{"TestOther"}}}}
+	if rep := ProjectReport(other, pass, "", false, meta); len(rep.Regressions) != 0 {
+		t.Errorf("passing TestHello reported as a regression: %+v", rep.Regressions)
+	}
+	if rep := Report(stage, res, "", true, meta); rep.Regressions != nil {
+		t.Errorf("Report filled regressions: %+v", rep.Regressions)
+	}
+	if rep := ProjectReport(hello, pass, "", false, meta); !rep.OK || len(rep.Regressions) != 0 {
+		t.Errorf("passing stage: ok %v, regressions %+v", rep.OK, rep.Regressions)
+	}
+
+	// A compile error has no regressions: every task fails already.
+	broken := parseFixture(t, "compile-error.json")
+	if rep := ProjectReport(stage, broken, "", true, meta); len(rep.Regressions) != 0 || rep.BuildError == "" {
+		t.Errorf("compile error: regressions %+v", rep.Regressions)
+	}
+}

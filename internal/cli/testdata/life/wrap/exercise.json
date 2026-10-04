@@ -1,0 +1,9 @@
+{
+  "id": "wrap", "title": "Wrap", "lead": "Fold an index back into a range.",
+  "subject": "go", "minutes": 5, "checker": "go-test",
+  "edit": ["wrap.go"],
+  "given": [{ "path": "wrap_test.go", "note": "the tests" }, { "path": "go.mod", "note": "names the module" }],
+  "show": "wrap.go",
+  "tasks": [ { "n": 1, "title": "Wrap", "html": "…", "text": "Make Wrap fold i into 0 to n-1.", "tests": ["TestWrap"] } ],
+  "hints": []
+}

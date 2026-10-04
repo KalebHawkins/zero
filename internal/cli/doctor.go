@@ -41,6 +41,7 @@ func (a *app) doctor() error {
 			checkGo(),
 			checkGit(),
 			checkPodman(),
+			checkCC(),
 			checkEditor(cfg),
 			checkWorkspace(cfg),
 			site,
@@ -218,6 +219,21 @@ func checkPodman() spec.Check {
 		return c
 	}
 	c.OK, c.Detail = true, out
+	return c
+}
+
+// checkCC looks for a C compiler on PATH. Ebitengine needs one on Linux to
+// build window exercises. It only looks; it starts nothing.
+func checkCC() spec.Check {
+	c := spec.Check{Name: "cc", Optional: true}
+	for _, name := range []string{"cc", "gcc", "clang"} {
+		if path, err := exec.LookPath(name); err == nil {
+			c.OK, c.Detail = true, name+" ("+path+")"
+			return c
+		}
+	}
+	c.Detail = "no cc, gcc or clang command was found"
+	c.Fix = "Install a C compiler. Window exercises need one on Linux."
 	return c
 }
 

@@ -229,7 +229,7 @@ A setting can come from four places.
 
 | Setting | Config key | Flag | Environment | Default |
 |---|---|---|---|---|
-| Site address | `api_url` | `--api-url <url>` | `ZERO_API_URL` | `https://zeroseries.dev` |
+| Site address | `api_url` | `--api-url <url>` | `ZERO_API_URL` | `https://kryolabs.duckdns.org/zero` |
 | Workspace folder | `workspace` | `--workspace <dir>` | `ZERO_WORKSPACE` | `~/zero` |
 | Open a browser on login | `browser` (`true` or `false`) | `--no-browser` | `ZERO_NO_BROWSER=1` | `true` |
 | Color | `color` (`auto`, `always` or `never`) | `--no-color` | `NO_COLOR` | `auto` |
@@ -252,7 +252,7 @@ zero config list
 ```
 
 ```
-api_url      https://zeroseries.dev                from default
+api_url      https://kryolabs.duckdns.org/zero                from default
 workspace    /home/you/practice                    from file
 browser      false                                 from env
 color        auto                                  from default
@@ -309,14 +309,14 @@ The tokens are in the config file like this:
 {
   "workspace": "~/practice",
   "tokens": {
-    "https://zeroseries.dev": { "token": "...", "login": "kryo" },
+    "https://kryolabs.duckdns.org/zero": { "token": "...", "login": "kryo" },
     "http://localhost:8090": { "token": "...", "login": "kryo" }
   }
 }
 ```
 
 An older config file has one `token` field and no site.
-`zero` reads it as the token for the saved `api_url`, or for `https://zeroseries.dev` when no `api_url` is saved.
+`zero` reads it as the token for the saved `api_url`, or for `https://kryolabs.duckdns.org/zero` when no `api_url` is saved.
 The next write to the file stores it under `tokens`.
 
 ### Notes on the settings

@@ -36,7 +36,7 @@ func TestExamplesRoundTrip(t *testing.T) {
 		"File":   {`{ "path": "hello.go", "content": "package hello\n", "mode": "edit" }`, &File{}},
 		"Next":   {`{ "kind": "exercise", "id": "variables", "title": "Variables" }`, &Next{}},
 		"Error":  {`{"error": "not_passing", "message": "The tests do not pass."}`, &Error{}},
-		"Device": {`{"device_code":"d","user_code":"ABCD-EFGH","verification_uri":"https://zeroseries.dev/cli/","verification_uri_complete":"https://zeroseries.dev/cli/?code=ABCD-EFGH","interval":2,"expires_in":600}`, &DeviceResponse{}},
+		"Device": {`{"device_code":"d","user_code":"ABCD-EFGH","verification_uri":"https://kryolabs.duckdns.org/zero/cli/","verification_uri_complete":"https://kryolabs.duckdns.org/zero/cli/?code=ABCD-EFGH","interval":2,"expires_in":600}`, &DeviceResponse{}},
 		"Exercise": {`{ "id": "hello-world", "title": "Hello, World", "lead": "One sentence.",
 			"minutes": 5, "checker": "go-test", "edit": ["hello.go"], "run": ["go", "run", "./cmd/hello"],
 			"tasks": [ { "n": 1, "title": "Say hello", "text": "Plain text.", "tests": ["TestHello"] } ],

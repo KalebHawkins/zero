@@ -31,7 +31,7 @@ var Keys = []string{KeyAPIURL, KeyWorkspace, KeyBrowser, KeyColor, KeyEditor}
 
 // Defaults.
 const (
-	DefaultAPIURL    = "https://zeroseries.dev"
+	DefaultAPIURL    = "https://kryolabs.duckdns.org/zero"
 	DefaultWorkspace = "~/zero"
 	DefaultColor     = ColorAuto
 )

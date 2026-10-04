@@ -310,7 +310,7 @@ Settings:
   help                       show this text
 
 Setting keys:
-  api_url      the site address                         default https://zeroseries.dev
+  api_url      the site address                         default https://kryolabs.duckdns.org/zero
   workspace    the folder that holds your exercises     default ~/zero
   browser      open a browser on login: true or false   default true
   color        auto, always or never                    default auto

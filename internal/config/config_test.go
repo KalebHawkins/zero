@@ -183,7 +183,7 @@ func TestListShowsEveryKeyInOrder(t *testing.T) {
 
 func TestToken(t *testing.T) {
 	home := t.TempDir()
-	path := writeConfig(t, home, `{"tokens": {"https://zeroseries.dev": {"token": "file-token", "login": "kryo"}}}`)
+	path := writeConfig(t, home, `{"tokens": {"https://kryolabs.duckdns.org/zero": {"token": "file-token", "login": "kryo"}}}`)
 
 	c, err := Load(Flags{Config: path}, env(home))
 	if err != nil {
@@ -393,7 +393,7 @@ func TestTokenIsPerSite(t *testing.T) {
 		"api_url": "http://localhost:8090",
 		"tokens": {
 			"http://localhost:8090": {"token": "local-token", "login": "dev"},
-			"https://zeroseries.dev": {"token": "prod-token", "login": "kryo"}
+			"https://kryolabs.duckdns.org/zero": {"token": "prod-token", "login": "kryo"}
 		}
 	}`)
 	for _, tc := range []struct {
@@ -406,8 +406,8 @@ func TestTokenIsPerSite(t *testing.T) {
 	}{
 		{"the saved api_url", Flags{}, nil, "local-token", "dev", FromFile},
 		{"a trailing slash is the same site", Flags{APIURL: "http://localhost:8090/"}, nil, "local-token", "dev", FromFile},
-		{"another site by flag", Flags{APIURL: "https://zeroseries.dev"}, nil, "prod-token", "kryo", FromFile},
-		{"another site by env", Flags{}, []string{EnvAPIURL, "https://zeroseries.dev/"}, "prod-token", "kryo", FromFile},
+		{"another site by flag", Flags{APIURL: "https://kryolabs.duckdns.org/zero"}, nil, "prod-token", "kryo", FromFile},
+		{"another site by env", Flags{}, []string{EnvAPIURL, "https://kryolabs.duckdns.org/zero/"}, "prod-token", "kryo", FromFile},
 		{"a site with no sign-in", Flags{APIURL: "https://other.example"}, nil, "", "", FromNowhere},
 		{"a path prefix is another site", Flags{APIURL: "http://localhost:8090/zero-next"}, nil, "", "", FromNowhere},
 		{"ZERO_TOKEN overrides on any site", Flags{APIURL: "https://other.example"}, []string{EnvToken, "env-token"}, "env-token", "", FromEnv},
@@ -491,7 +491,7 @@ func TestOldTokenMigrates(t *testing.T) {
 	}
 
 	// A newer entry for the same site is not replaced by the old token.
-	path = writeConfig(t, home, `{"token": "old-token", "tokens": {"https://zeroseries.dev": {"token": "new-token", "login": "kryo"}}}`)
+	path = writeConfig(t, home, `{"token": "old-token", "tokens": {"https://kryolabs.duckdns.org/zero": {"token": "new-token", "login": "kryo"}}}`)
 	f, err = ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -504,17 +504,17 @@ func TestOldTokenMigrates(t *testing.T) {
 func TestRemoveTokenLeavesOtherSites(t *testing.T) {
 	var f File
 	f.SetToken("http://localhost:8090/", "a", "dev")
-	f.SetToken("https://zeroseries.dev", "b", "kryo")
+	f.SetToken("https://kryolabs.duckdns.org/zero", "b", "kryo")
 	if !f.RemoveToken("http://localhost:8090") {
 		t.Error("RemoveToken found nothing")
 	}
-	if len(f.Tokens) != 1 || f.Tokens["https://zeroseries.dev"].Token != "b" {
+	if len(f.Tokens) != 1 || f.Tokens["https://kryolabs.duckdns.org/zero"].Token != "b" {
 		t.Errorf("tokens = %+v", f.Tokens)
 	}
 	if f.RemoveToken("http://localhost:8090") {
 		t.Error("RemoveToken removed a site twice")
 	}
-	f.RemoveToken("https://zeroseries.dev/")
+	f.RemoveToken("https://kryolabs.duckdns.org/zero/")
 	if f.Tokens != nil {
 		t.Errorf("tokens = %+v, want none", f.Tokens)
 	}

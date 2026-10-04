@@ -13,8 +13,8 @@ import (
 
 func TestURLJoin(t *testing.T) {
 	for _, tc := range []struct{ base, path, want string }{
-		{"https://zeroseries.dev", "/me", "https://zeroseries.dev/api/me"},
-		{"https://zeroseries.dev/", "me", "https://zeroseries.dev/api/me"},
+		{"https://kryolabs.duckdns.org/zero", "/me", "https://kryolabs.duckdns.org/zero/api/me"},
+		{"https://kryolabs.duckdns.org/zero/", "me", "https://kryolabs.duckdns.org/zero/api/me"},
 		{"https://kryolabs.duckdns.org/zero-next", "/cli/device", "https://kryolabs.duckdns.org/zero-next/api/cli/device"},
 		{"http://localhost:8090/a/b/", "/exercises/hello-world/runs", "http://localhost:8090/a/b/api/exercises/hello-world/runs"},
 	} {

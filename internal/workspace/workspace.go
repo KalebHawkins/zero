@@ -204,6 +204,40 @@ func write(root string, resp *spec.ExerciseResponse, force, reference bool) (*Wr
 	return res, nil
 }
 
+// AheadError means the project folder holds a later stage than the one being
+// started, so starting it would put older files back.
+type AheadError struct {
+	Dir          string
+	Have, Starts int // the stage in the folder, the stage being started
+}
+
+func (e *AheadError) Error() string {
+	return fmt.Sprintf("Stage %d is ahead of this one in %s; starting stage %d would replace newer files. Use --force to do it anyway.", e.Have, e.Dir, e.Starts)
+}
+
+// CheckNotAhead returns an *AheadError when the project folder of resp, a stage,
+// already holds a later stage of the same project. A plain exercise, a missing
+// or unreadable folder, and the same or an earlier stage are fine.
+func CheckNotAhead(root string, resp *spec.ExerciseResponse) error {
+	p := resp.Project
+	if p == nil || !folderName(p.ID) {
+		return nil
+	}
+	dir := filepath.Join(root, p.ID)
+	b, err := os.ReadFile(filepath.Join(dir, MetaDir, ExerciseFile))
+	if err != nil {
+		return nil
+	}
+	var old spec.Saved
+	if json.Unmarshal(b, &old) != nil || old.Project == nil || old.Project.ID != p.ID {
+		return nil
+	}
+	if old.Project.Stage > p.Stage {
+		return &AheadError{Dir: dir, Have: old.Project.Stage, Starts: p.Stage}
+	}
+	return nil
+}
+
 // folderName reports whether an id from the server can name a folder in the
 // workspace.
 func folderName(id string) bool {

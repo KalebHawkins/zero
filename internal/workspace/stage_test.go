@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/KalebHawkins/zero/spec"
@@ -324,5 +325,35 @@ func TestUse(t *testing.T) {
 	bad := spec.Use{Exercise: "wrap", Copy: []spec.Copy{{From: "wrap.go", To: "../evil.go"}}}
 	if _, err := Use(project, exercise, bad, true); err == nil {
 		t.Error("a destination outside the project was accepted")
+	}
+}
+
+func TestCheckNotAhead(t *testing.T) {
+	root := t.TempDir()
+	stage := func(project string, n int) *spec.ExerciseResponse {
+		return &spec.ExerciseResponse{
+			Exercise: spec.Exercise{ID: project + "-" + strconv.Itoa(n), Edit: []string{"a.go"}},
+			Files:    []spec.File{{Path: "a.go", Content: "package a\n", Mode: spec.ModeEdit}},
+			Project:  &spec.Project{ID: project, Stage: n, Stages: 3, EditAll: []string{"a.go"}},
+		}
+	}
+	if err := CheckNotAhead(root, stage("p", 1)); err != nil {
+		t.Fatalf("no folder yet: %v", err)
+	}
+	if _, err := Write(root, stage("p", 3), false); err != nil {
+		t.Fatal(err)
+	}
+	var ahead *AheadError
+	if err := CheckNotAhead(root, stage("p", 1)); !errors.As(err, &ahead) || ahead.Have != 3 || ahead.Starts != 1 ||
+		err.Error() != "Stage 3 is ahead of this one in "+filepath.Join(root, "p")+"; starting stage 1 would replace newer files. Use --force to do it anyway." {
+		t.Errorf("stage 1 over stage 3: %v", err)
+	}
+	for _, n := range []int{3, 4} {
+		if err := CheckNotAhead(root, stage("p", n)); err != nil {
+			t.Errorf("stage %d over stage 3: %v", n, err)
+		}
+	}
+	if err := CheckNotAhead(root, &spec.ExerciseResponse{Exercise: spec.Exercise{ID: "p"}}); err != nil {
+		t.Errorf("a plain exercise: %v", err)
 	}
 }

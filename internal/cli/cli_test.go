@@ -748,3 +748,49 @@ func TestConfigUnset(t *testing.T) {
 		t.Errorf("config unset token: code %d, stderr %q", code, stderr)
 	}
 }
+
+// With no path chosen, zero next says so and points at the path page.
+func TestNextWithNoPath(t *testing.T) {
+	h := newHarness(t)
+	h.signIn()
+	h.fake.pathSet, h.fake.path = true, ""
+	out := h.ok("next")
+	wantContains(t, "next with no path", out, "Next: Hello, World. Run: zero start hello-world",
+		"You have not chosen a path yet, so this follows The Combined Path. To choose one, go to "+h.fake.siteRoot+"/path/")
+	h.fake.passed, h.fake.next = true, nil
+	out = h.ok("next")
+	if strings.TrimSpace(out) != "You have not chosen a path yet. Choose one at "+h.fake.siteRoot+"/path/, then run: zero next" {
+		t.Errorf("next with no path and nothing left: %q", out)
+	}
+	h.fake.path = "world"
+	if out := h.ok("next"); strings.TrimSpace(out) != "Your path has nothing more yet." {
+		t.Errorf("next with a path and nothing left: %q", out)
+	}
+}
+
+func TestBrokeLine(t *testing.T) {
+	regs := func(names ...string) []spec.TestResult {
+		var out []spec.TestResult
+		for _, n := range names {
+			out = append(out, spec.TestResult{Name: n})
+		}
+		return out
+	}
+	stages := map[string]int{"TestA": 1, "TestB": 2, "TestC": 3}
+	for _, c := range []struct {
+		names []string
+		want  string
+	}{
+		{[]string{"TestB"}, "Stage 2 broke"},
+		{[]string{"TestB", "TestA"}, "Stages 1 and 2 broke"},
+		{[]string{"TestC", "TestA", "TestB", "TestA"}, "Stages 1, 2 and 3 broke"},
+		{[]string{"TestA", "TestUnknown"}, "An earlier stage broke"},
+	} {
+		if got := brokeLine(regs(c.names...), stages); got != c.want {
+			t.Errorf("brokeLine(%v) = %q, want %q", c.names, got, c.want)
+		}
+	}
+	if got := brokeLine(regs("TestA"), nil); got != "An earlier stage broke" {
+		t.Errorf("brokeLine without test_stages = %q", got)
+	}
+}

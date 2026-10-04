@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os/exec"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/KalebHawkins/zero/internal/api"
@@ -51,6 +53,15 @@ func (a *app) start() error {
 	if reference && resp.Project == nil {
 		return usage("%s is not a project stage, so it has no reference to lay down. Run: zero start %s", id, id)
 	}
+	if reference && resp.Project.Stage <= 1 {
+		return usage("%s is stage 1, so there is no earlier stage to lay down. Run: zero start %s", id, id)
+	}
+	if !force {
+		var ahead *workspace.AheadError
+		if err := workspace.CheckNotAhead(cfg.Workspace, resp); errors.As(err, &ahead) {
+			return fail("%s", ahead.Error())
+		}
+	}
 	var res *workspace.WriteResult
 	if reference {
 		res, err = workspace.WriteWithReference(cfg.Workspace, resp, force)
@@ -69,14 +80,27 @@ func (a *app) start() error {
 	if p := resp.Project; p != nil {
 		a.out.line("%s, stage %d of %d: %s is ready in %s", a.out.bold(p.Title), p.Stage, p.Stages, a.out.bold(resp.Exercise.Title), res.Dir)
 		if len(res.Reference) > 0 {
-			a.out.line("Laid down the reference solution of stage %d: %d files.", p.Stage-1, len(res.Reference))
+			copied := map[string]string{} // destination -> exercise
+			for _, u := range resp.Uses {
+				for _, c := range u.Copy {
+					copied[c.To] = u.Exercise
+				}
+			}
+			var restored []string
+			for _, f := range res.Reference {
+				if from, ok := copied[f]; ok {
+					restored = append(restored, fmt.Sprintf("Restored %s, copied in from %s.", f, from))
+				}
+			}
+			a.out.line("Laid down the reference solution of stage %d: %d files.", p.Stage-1, len(res.Reference)-len(restored))
+			for _, line := range restored {
+				a.out.line("%s", line)
+			}
 		}
 		for _, f := range res.Kept {
 			a.out.line("Kept your %s.", f)
 		}
-		if len(resp.Uses) > 0 {
-			a.out.line("This stage uses files from another exercise. To see them, run: zero use")
-		}
+		a.printUses(resp.Uses)
 	} else {
 		a.out.line("%s is ready in %s", a.out.bold(resp.Exercise.Title), res.Dir)
 		for _, f := range res.Kept {
@@ -86,8 +110,29 @@ func (a *app) start() error {
 	a.out.blank()
 	a.out.line("Next:")
 	a.out.line("  cd %s", res.Dir)
+	for _, u := range resp.Uses {
+		if len(u.Copy) > 0 {
+			a.out.line("  zero use %s", u.Exercise)
+		}
+	}
 	a.out.line("  zero test")
 	return nil
+}
+
+// printUses says that the stage builds on the learner's code from other
+// exercises, and that `zero use` must copy it in before `zero test`.
+func (a *app) printUses(uses []spec.Use) {
+	for _, u := range uses {
+		if len(u.Copy) == 0 {
+			continue
+		}
+		a.out.blank()
+		a.out.line("This stage builds on your code from %s. Before zero test, copy it in with: zero use %s", u.Exercise, u.Exercise)
+		for _, c := range u.Copy {
+			a.out.line("  %s -> %s", c.From, c.To)
+		}
+		a.out.line("This stage's code calls it, so without it the build fails.")
+	}
 }
 
 // exercise finds the exercise that holds the current folder.
@@ -116,13 +161,17 @@ func (a *app) runTests(dir string, saved *spec.Saved, submitting bool) (spec.Rep
 	if err != nil {
 		return rep, err
 	}
-	a.printReport(ex, rep, submitting)
+	var testStages map[string]int
+	if saved.Project != nil {
+		testStages = saved.Project.TestStages
+	}
+	a.printReport(ex, rep, testStages, submitting)
 	return rep, nil
 }
 
 // printReport prints the exercise name, every task with its mark, the
 // messages of the failing tests, and a one-line summary.
-func (a *app) printReport(ex spec.Exercise, rep spec.Report, submitting bool) {
+func (a *app) printReport(ex spec.Exercise, rep spec.Report, testStages map[string]int, submitting bool) {
 	p := a.out
 	p.line("%s", p.bold(ex.Title))
 	p.blank()
@@ -159,9 +208,13 @@ func (a *app) printReport(ex spec.Exercise, rep spec.Report, submitting bool) {
 	}
 	if len(rep.Regressions) > 0 {
 		p.blank()
-		p.line("An earlier stage broke:")
+		p.line("%s:", brokeLine(rep.Regressions, testStages))
 		for _, test := range rep.Regressions {
-			p.line("    %s %s", p.red(markFail), test.Name)
+			label := test.Name
+			if n := testStages[test.Name]; n > 0 {
+				label = fmt.Sprintf("Stage %d: %s", n, test.Name)
+			}
+			p.line("    %s %s", p.red(markFail), label)
 			if test.Message != "" {
 				p.line("%s", indent(test.Message, "        "))
 			}
@@ -171,7 +224,7 @@ func (a *app) printReport(ex spec.Exercise, rep spec.Report, submitting bool) {
 	count := fmt.Sprintf("Tasks passed: %d of %d.", passed, len(rep.Tasks))
 	switch {
 	case len(rep.Regressions) > 0:
-		p.line("%s An earlier stage broke. Fix the earlier stage first, then run: zero test", count)
+		p.line("%s %s. Fix it first, then run: zero test", count, brokeLine(rep.Regressions, testStages))
 	case rep.OK && submitting:
 		p.line("%s Every test passes.", count)
 	case rep.OK:
@@ -181,6 +234,32 @@ func (a *app) printReport(ex spec.Exercise, rep spec.Report, submitting bool) {
 	default:
 		p.line("%s Fix the first failing task, then run: zero test", count)
 	}
+}
+
+// brokeLine names the earlier stages that broke, for example "Stage 1 broke"
+// or "Stages 1 and 2 broke". Without stage numbers it says "An earlier stage broke".
+func brokeLine(regressions []spec.TestResult, testStages map[string]int) string {
+	seen := map[int]bool{}
+	var stages []int
+	for _, t := range regressions {
+		n := testStages[t.Name]
+		if n == 0 {
+			return "An earlier stage broke"
+		}
+		if !seen[n] {
+			seen[n] = true
+			stages = append(stages, n)
+		}
+	}
+	sort.Ints(stages)
+	if len(stages) == 1 {
+		return fmt.Sprintf("Stage %d broke", stages[0])
+	}
+	names := make([]string, len(stages))
+	for i, n := range stages {
+		names[i] = strconv.Itoa(n)
+	}
+	return "Stages " + strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1] + " broke"
 }
 
 func (a *app) test() error {
@@ -254,6 +333,21 @@ func (a *app) next() error {
 	next, err := client.Next()
 	if err != nil {
 		return err
+	}
+	// With no path chosen, the server follows The Combined Path; say how to choose.
+	if st, err := client.State(); err == nil && st.Path == "" {
+		cfg, _ := a.settings()
+		where := "the site"
+		if cfg != nil {
+			where = cfg.APIURL + "/path/"
+		}
+		if next == nil {
+			a.out.line("You have not chosen a path yet. Choose one at %s, then run: zero next", where)
+			return nil
+		}
+		a.printNext(next)
+		a.out.line("You have not chosen a path yet, so this follows The Combined Path. To choose one, go to %s", where)
+		return nil
 	}
 	a.printNext(next)
 	return nil

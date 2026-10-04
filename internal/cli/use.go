@@ -49,7 +49,7 @@ func (a *app) use() error {
 	var missing *workspace.MissingError
 	switch {
 	case errors.Is(err, workspace.ErrNoExerciseFolder):
-		return fail("The folder %s does not exist. Get the exercise and finish it first: zero start %s", source, id)
+		return fail("The folder %s does not exist, so there is nothing to copy. Get the exercise and finish it: zero start %s. If you passed it already (on another machine, say), get the reference copy instead: zero start %s --reference", source, id, saved.Exercise.ID)
 	case errors.As(err, &missing):
 		return fail("%s has no %s. Get the file back with: zero start %s", source, missing.Path, id)
 	case err != nil:

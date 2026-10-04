@@ -35,7 +35,7 @@ func TestEndToEnd(t *testing.T) {
 	out := h.ok("login")
 	wantContains(t, "login output", out,
 		"Your code is: ABCD-EFGH",
-		"Approve it on this page: "+h.fake.siteRoot+"/cli/",
+		"Approve it on this page: "+h.fake.siteRoot+"/cli/?code=ABCD-EFGH",
 		"Signed in as kryo.",
 		"Next: zero doctor")
 	if len(h.opened) != 0 {

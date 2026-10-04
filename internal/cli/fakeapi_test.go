@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"net/http"
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -50,6 +51,8 @@ type fakeAPI struct {
 	projects   map[string]string // project id -> title
 	passedIDs  map[string]bool   // entries that were submitted
 	references []string          // ids requested with ?reference=1
+	path       string            // the learner's path; "" means none chosen
+	pathSet    bool              // whether GET /api/state answers path, not "combined"
 }
 
 // fakeEntry is one more exercise, or a stage of a project.
@@ -138,6 +141,14 @@ func loadEntry(content fs.FS) (*fakeEntry, error) {
 		return nil, err
 	}
 	e.project, e.stage, e.uses = stage.Project, stage.Stage, stage.Uses
+	// As the platform's loader does: a file zero use copies in is an edit file.
+	for _, u := range e.uses {
+		for _, c := range u.Copy {
+			if !slices.Contains(e.exercise.Edit, c.To) {
+				e.exercise.Edit = append(e.exercise.Edit, c.To)
+			}
+		}
+	}
 	edit := map[string]bool{}
 	for _, p := range e.exercise.Edit {
 		edit[p] = true
@@ -200,6 +211,7 @@ func (f *fakeAPI) handler() http.Handler {
 	mux.HandleFunc("POST /api/exercises/{id}/runs", f.bearer(f.postRun))
 	mux.HandleFunc("POST /api/exercises/{id}/submit", f.bearer(f.submit))
 	mux.HandleFunc("GET /api/next", f.bearer(f.getNext))
+	mux.HandleFunc("GET /api/state", f.bearer(f.getState))
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		sendError(w, http.StatusNotFound, "not_found", "Nothing is at "+r.URL.Path+".")
 	})
@@ -371,11 +383,33 @@ func (f *fakeAPI) getExercise(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		p.TestStages = map[string]int{}
+		for n := 1; n < e.stage; n++ {
+			for _, t := range f.entries[fmt.Sprintf("%s-%d", e.project, n)].exercise.Tasks {
+				for _, name := range t.Tests {
+					p.TestStages[name] = n
+				}
+			}
+		}
 		resp.Project, resp.Uses = p, e.uses
 		if r.URL.Query().Get("reference") == "1" {
 			f.references = append(f.references, id)
 			if e.stage > 1 {
-				resp.Reference = f.entries[prev].solution
+				// The previous stage's solution, plus the copied-in files of
+				// used exercises the learner passed.
+				resp.Reference = append([]spec.File(nil), f.entries[prev].solution...)
+				for _, u := range e.uses {
+					if !f.passedIDs[u.Exercise] {
+						continue
+					}
+					for _, c := range u.Copy {
+						for _, sf := range f.entries[u.Exercise].solution {
+							if sf.Path == c.From {
+								resp.Reference = append(resp.Reference, spec.File{Path: c.To, Content: sf.Content, Mode: spec.ModeEdit})
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -429,4 +463,14 @@ func (f *fakeAPI) getNext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	send(w, http.StatusOK, spec.NextResponse{Next: f.next})
+}
+
+func (f *fakeAPI) getState(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	path := "combined"
+	if f.pathSet {
+		path = f.path
+	}
+	send(w, http.StatusOK, spec.State{User: f.user, Path: path})
 }

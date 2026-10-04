@@ -33,9 +33,13 @@ func (a *app) login() error {
 	if dev.DeviceCode == "" || dev.UserCode == "" {
 		return fail("%s did not send a sign-in code. Check that api_url is the site address: zero config list", cfg.APIURL)
 	}
-	page := dev.VerificationURI
+	// The complete link carries the code, so the page opens with it filled in.
+	page := dev.VerificationURIComplete
 	if page == "" {
-		page = cfg.APIURL + "/cli/"
+		page = dev.VerificationURI
+	}
+	if page == "" {
+		page = cfg.APIURL + "/cli/?code=" + url.QueryEscape(dev.UserCode)
 	}
 
 	a.out.line("Your code is: %s", a.out.bold(dev.UserCode))

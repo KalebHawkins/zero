@@ -191,6 +191,9 @@ type Project struct {
 	Stage   int      `json:"stage"`
 	Stages  int      `json:"stages"`
 	EditAll []string `json:"edit_all"`
+	// TestStages maps each test of an earlier stage to its stage number, so a
+	// regression can name the stage that broke. Older servers do not send it.
+	TestStages map[string]int `json:"test_stages,omitempty"`
 }
 
 // Use names a finished exercise whose files a stage may copy into the

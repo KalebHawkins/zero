@@ -239,3 +239,12 @@ func (c *Client) Next() (*spec.Next, error) {
 	}
 	return out.Next, nil
 }
+
+// State calls GET /api/state.
+func (c *Client) State() (*spec.State, error) {
+	var out spec.State
+	if _, err := c.do(http.MethodGet, "/state", nil, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}

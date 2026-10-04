@@ -1,0 +1,9 @@
+{"ImportPath":"hello","Action":"build-output","Output":"# hello\n"}
+{"ImportPath":"hello","Action":"build-output","Output":"./hello.go:6:9: undefined: greeting\n"}
+{"ImportPath":"hello","Action":"build-fail"}
+{"Time":"2026-10-04T11:27:58.423294139-05:00","Action":"start","Package":"hello"}
+{"Time":"2026-10-04T11:27:58.423355495-05:00","Action":"output","Package":"hello","Output":"FAIL\thello [build failed]\n"}
+{"Time":"2026-10-04T11:27:58.423360434-05:00","Action":"fail","Package":"hello","Elapsed":0,"FailedBuild":"hello"}
+{"Time":"2026-10-04T11:27:58.423420828-05:00","Action":"start","Package":"hello/cmd/hello"}
+{"Time":"2026-10-04T11:27:58.423446827-05:00","Action":"output","Package":"hello/cmd/hello","Output":"FAIL\thello/cmd/hello [build failed]\n"}
+{"Time":"2026-10-04T11:27:58.423451516-05:00","Action":"fail","Package":"hello/cmd/hello","Elapsed":0,"FailedBuild":"hello"}

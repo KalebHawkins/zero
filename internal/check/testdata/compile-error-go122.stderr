@@ -1,0 +1,2 @@
+# hello [hello.test]
+./hello.go:6:9: undefined: greeting

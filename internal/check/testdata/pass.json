@@ -1,0 +1,11 @@
+{"Time":"2026-10-04T11:27:58.372591873-05:00","Action":"start","Package":"hello"}
+{"Time":"2026-10-04T11:27:58.372757586-05:00","Action":"start","Package":"hello/cmd/hello"}
+{"Time":"2026-10-04T11:27:58.372803463-05:00","Action":"output","Package":"hello/cmd/hello","Output":"?   \thello/cmd/hello\t[no test files]\n"}
+{"Time":"2026-10-04T11:27:58.372815235-05:00","Action":"skip","Package":"hello/cmd/hello","Elapsed":0}
+{"Time":"2026-10-04T11:27:58.374537999-05:00","Action":"run","Package":"hello","Test":"TestHello"}
+{"Time":"2026-10-04T11:27:58.374549931-05:00","Action":"output","Package":"hello","Test":"TestHello","Output":"=== RUN   TestHello\n"}
+{"Time":"2026-10-04T11:27:58.374572524-05:00","Action":"output","Package":"hello","Test":"TestHello","Output":"--- PASS: TestHello (0.00s)\n"}
+{"Time":"2026-10-04T11:27:58.37457562-05:00","Action":"pass","Package":"hello","Test":"TestHello","Elapsed":0}
+{"Time":"2026-10-04T11:27:58.374579547-05:00","Action":"output","Package":"hello","Output":"PASS\n"}
+{"Time":"2026-10-04T11:27:58.374874304-05:00","Action":"output","Package":"hello","Output":"ok  \thello\t0.002s\n"}
+{"Time":"2026-10-04T11:27:58.375217743-05:00","Action":"pass","Package":"hello","Elapsed":0.003}

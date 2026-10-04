@@ -1,0 +1,36 @@
+{
+  "id": "hello-world",
+  "title": "Hello, World",
+  "lead": "Your first exercise checks that your setup works. It does not test what you know.",
+  "subject": "go",
+  "minutes": 5,
+  "checker": "go-test",
+  "edit": ["hello.go"],
+  "given": [
+    { "path": "hello_test.go", "note": "the test; read it, do not edit it" },
+    { "path": "cmd/hello/main.go", "note": "the program that zero run starts" },
+    { "path": "go.mod", "note": "names the module" }
+  ],
+  "show": "hello.go",
+  "run": ["go", "run", "./cmd/hello"],
+  "intro": "<code>Hello</code> returns the wrong greeting. Fix it.",
+  "tasks": [
+    {
+      "n": 1,
+      "title": "Say hello",
+      "html": "Change <code>Hello</code> so it returns <code>\"Hello, World\"</code>.",
+      "text": "Change Hello so it returns \"Hello, World\".",
+      "examples": [{ "call": "Hello()", "result": "\"Hello, World\"" }],
+      "tests": ["TestHello"]
+    }
+  ],
+  "hints": [
+    {
+      "title": "Where to look",
+      "html": "Open <code>hello.go</code>. The text between the quotes is what <code>Hello</code> returns.",
+      "text": "Open hello.go. The text between the quotes is what Hello returns."
+    }
+  ],
+  "see": { "html": "<code>zero run</code> runs the program in <code>cmd/hello</code>, which prints what <code>Hello</code> returns." },
+  "goes": { "title": "Every exercise", "html": "Start, test, run and submit are the same four commands for every exercise and every project stage." }
+}

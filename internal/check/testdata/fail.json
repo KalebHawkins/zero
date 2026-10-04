@@ -1,0 +1,12 @@
+{"Time":"2026-10-04T11:27:58.201793646-05:00","Action":"start","Package":"hello"}
+{"Time":"2026-10-04T11:27:58.20193352-05:00","Action":"start","Package":"hello/cmd/hello"}
+{"Time":"2026-10-04T11:27:58.20194439-05:00","Action":"output","Package":"hello/cmd/hello","Output":"?   \thello/cmd/hello\t[no test files]\n"}
+{"Time":"2026-10-04T11:27:58.201950662-05:00","Action":"skip","Package":"hello/cmd/hello","Elapsed":0}
+{"Time":"2026-10-04T11:27:58.203780558-05:00","Action":"run","Package":"hello","Test":"TestHello"}
+{"Time":"2026-10-04T11:27:58.203787752-05:00","Action":"output","Package":"hello","Test":"TestHello","Output":"=== RUN   TestHello\n"}
+{"Time":"2026-10-04T11:27:58.203808-05:00","Action":"output","Package":"hello","Test":"TestHello","Output":"    hello_test.go:8: Hello() = \"Goodbye, World\", want \"Hello, World\"\n"}
+{"Time":"2026-10-04T11:27:58.203814462-05:00","Action":"output","Package":"hello","Test":"TestHello","Output":"--- FAIL: TestHello (0.00s)\n"}
+{"Time":"2026-10-04T11:27:58.203817919-05:00","Action":"fail","Package":"hello","Test":"TestHello","Elapsed":0}
+{"Time":"2026-10-04T11:27:58.203821175-05:00","Action":"output","Package":"hello","Output":"FAIL\n"}
+{"Time":"2026-10-04T11:27:58.204175324-05:00","Action":"output","Package":"hello","Output":"FAIL\thello\t0.002s\n"}
+{"Time":"2026-10-04T11:27:58.204184481-05:00","Action":"fail","Package":"hello","Elapsed":0.002}

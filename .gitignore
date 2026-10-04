@@ -1,0 +1,16 @@
+# The built command
+/zero
+/zero.exe
+/bin/
+/dist/
+
+# Test and coverage output
+*.test
+*.out
+coverage.*
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+.DS_Store

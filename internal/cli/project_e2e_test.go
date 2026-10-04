@@ -63,7 +63,7 @@ func TestProjectEndToEnd(t *testing.T) {
 	// Stage 2 keeps the learner's rules.go and adds its own files.
 	out = h.ok("start", "life-2")
 	wantContains(t, "start life-2", out, "Life, stage 2 of 2: Count the neighbors is ready in "+dir,
-		"This stage builds on your code from wrap. Before zero test, copy it in with: zero use wrap\n  wrap.go -> wrap.go\nThis stage's code calls it, so without it the build fails.",
+		"This stage builds on your code from Wrap. Before zero test, copy it in with: zero use wrap\n  wrap.go -> wrap.go\nThis stage's code calls it, so without it the build fails.",
 		"  zero use wrap\n  zero test")
 	if strings.Contains(out, "Kept your") {
 		t.Errorf("stage 2 start says it kept a file, but every file it sends is new:\n%s", out)
@@ -222,6 +222,11 @@ func TestProjectEndToEnd(t *testing.T) {
 	newDir := filepath.Join(other, "life")
 	wantContains(t, "reference start", out, "Laid down the reference solution of stage 1: 3 files.",
 		"Restored wrap.go, copied in from wrap.", "is ready in "+newDir)
+	// The restored wrap.go is done: no zero use step, so no loop back to --reference.
+	wantContains(t, "reference start", out, "This stage builds on your code from Wrap. It is already in the project:\n  wrap.go")
+	if strings.Contains(out, "zero use") {
+		t.Errorf("after --reference the start message still asks for zero use:\n%s", out)
+	}
 	if got, _ := os.ReadFile(filepath.Join(newDir, "wrap.go")); string(got) != lifeFile(t, "wrap/solution/wrap.go") {
 		t.Errorf("--reference did not restore wrap.go: %q", got)
 	}
@@ -239,6 +244,15 @@ func TestProjectEndToEnd(t *testing.T) {
 	code, out, _ = h.run("test")
 	if code != 1 || strings.Contains(out, "broke") || strings.Contains(out, "does not compile") || !strings.Contains(out, "✗ Task 1: Count with wrapping edges") {
 		t.Errorf("test after --reference: code %d\n%s", code, out)
+	}
+	// zero use on the restored entry, with no wrap folder here: the files are done.
+	out = h.ok("use", "wrap")
+	wantContains(t, "use after --reference", out, "The files from Wrap are already in the project: wrap.go", "Next: zero test")
+	out = h.ok("use")
+	wantContains(t, "use list after --reference", out, "your code from Wrap, already in the project", "Nothing to copy. Next: zero test")
+	code, _, stderr = h.run("use", "wrap", "--force")
+	if code != 1 || !strings.Contains(stderr, "does not exist") {
+		t.Errorf("use --force without the exercise folder: code %d, %q", code, stderr)
 	}
 	// A second --reference refuses to replace the learner's work.
 	writeFile(t, filepath.Join(newDir, "rules.go"), myRules)
@@ -270,4 +284,35 @@ func readSaved(t *testing.T, dir string) spec.Saved {
 		t.Fatal(err)
 	}
 	return saved
+}
+
+// TestUsesWithoutCopy checks a uses entry with no copy list: the stage builds
+// on what that exercise taught, and there is nothing to copy (SPEC section 6).
+func TestUsesWithoutCopy(t *testing.T) {
+	h := newHarness(t)
+	if err := h.fake.addContent(life(t)); err != nil {
+		t.Fatal(err)
+	}
+	two := h.fake.entries["life-2"]
+	two.uses = []spec.Use{{Exercise: "wrap"}}
+	two.exercise.Edit = []string{"grid.go"}
+	h.fake.passedIDs["life-1"] = true
+	h.signIn()
+	dir := filepath.Join(h.workspace, "life")
+
+	out := h.ok("start", "life-2")
+	wantContains(t, "start", out, "This stage builds on Wrap. There is nothing to copy.", "  cd "+dir+"\n  zero test")
+	if strings.Contains(out, "zero use") || strings.Contains(out, "copy it in") {
+		t.Errorf("start offers zero use for an entry with nothing to copy:\n%s", out)
+	}
+	h.dir = dir
+	out = h.ok("use")
+	wantContains(t, "use list", out, "wrap  builds on Wrap, nothing to copy", "Nothing to copy. Next: zero test")
+	if strings.Contains(out, "To copy the files") {
+		t.Errorf("use list offers a copy:\n%s", out)
+	}
+	out = h.ok("use", "wrap")
+	if strings.TrimSpace(out) != "This stage builds on what Wrap taught, so there is nothing to copy." {
+		t.Errorf("use wrap = %q", out)
+	}
 }

@@ -385,6 +385,25 @@ func Use(projectDir, exerciseDir string, use spec.Use, force bool) (*UseResult, 
 	return res, nil
 }
 
+// Present reports whether every file a uses entry copies already exists in
+// projectDir, restored by --reference or copied earlier. An entry with
+// nothing to copy is never present: it has no files.
+func Present(projectDir string, use spec.Use) bool {
+	if len(use.Copy) == 0 {
+		return false
+	}
+	for _, c := range use.Copy {
+		if checkPath(c.To) != nil {
+			return false
+		}
+		info, err := os.Stat(filepath.Join(projectDir, filepath.FromSlash(c.To)))
+		if err != nil || info.IsDir() {
+			return false
+		}
+	}
+	return true
+}
+
 // HintsShown returns how many hints `zero hint` has shown in dir.
 func HintsShown(dir string) int {
 	b, err := os.ReadFile(filepath.Join(dir, MetaDir, HintsFile))

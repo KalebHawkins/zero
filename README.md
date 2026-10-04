@@ -193,7 +193,11 @@ zero use the-game-loop
 
 Run `zero use` with no id to see what the current stage can use.
 The exercise folder must exist. If it does not, run `zero start <exercise>` and finish it first.
+If the files are in the project already (restored by `--reference`, say), `zero use` says so and copies nothing.
 `zero use` does not replace a file you already have unless you add `--force`.
+
+Some stages only build on what an earlier exercise taught, with no files to copy.
+`zero use` lists them as "builds on" and has nothing to copy for them.
 
 ### Regressions
 

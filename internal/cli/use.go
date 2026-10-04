@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -28,7 +29,7 @@ func (a *app) use() error {
 		return fail("zero use works only inside a project stage. %s is a plain exercise.", saved.Exercise.Title)
 	}
 	if len(a.args) == 0 {
-		return a.listUses(saved)
+		return a.listUses(dir, saved)
 	}
 	id := a.args[0]
 	var entry *spec.Use
@@ -40,11 +41,25 @@ func (a *app) use() error {
 	if entry == nil {
 		return fail("This stage does not use %s. To see what it uses, run: zero use", id)
 	}
+	if !entry.CopiesFiles() {
+		a.out.line("This stage builds on what %s taught, so there is nothing to copy.", entry.Name())
+		return nil
+	}
 	cfg, err := a.settings()
 	if err != nil {
 		return err
 	}
 	source := filepath.Join(cfg.Workspace, id)
+	if !force && !isDir(source) && workspace.Present(dir, *entry) {
+		var to []string
+		for _, c := range entry.Copy {
+			to = append(to, c.To)
+		}
+		a.out.line("%s The files from %s are already in the project: %s", a.out.green(markPass), entry.Name(), strings.Join(to, ", "))
+		a.out.blank()
+		a.out.line("Next: zero test")
+		return nil
+	}
 	res, err := workspace.Use(dir, source, *entry, force)
 	var missing *workspace.MissingError
 	switch {
@@ -78,19 +93,42 @@ func (a *app) use() error {
 	return nil
 }
 
-func (a *app) listUses(saved *spec.Saved) error {
+func (a *app) listUses(dir string, saved *spec.Saved) error {
 	if len(saved.Uses) == 0 {
 		a.out.line("This stage uses no other exercise.")
 		return nil
 	}
 	a.out.line("This stage can use:")
+	next := ""
 	for _, u := range saved.Uses {
-		a.out.line("  %s", a.out.bold(u.Exercise))
+		if !u.CopiesFiles() {
+			a.out.line("  %s  builds on %s, nothing to copy", a.out.bold(u.Exercise), u.Name())
+			continue
+		}
+		present := workspace.Present(dir, u)
+		if present {
+			a.out.line("  %s  your code from %s, already in the project", a.out.bold(u.Exercise), u.Name())
+		} else {
+			a.out.line("  %s  your code from %s", a.out.bold(u.Exercise), u.Name())
+			if next == "" {
+				next = u.Exercise
+			}
+		}
 		for _, c := range u.Copy {
 			a.out.line("    %s -> %s", c.From, c.To)
 		}
 	}
 	a.out.blank()
-	a.out.line("To copy the files, run: zero use %s", saved.Uses[0].Exercise)
+	if next == "" {
+		a.out.line("Nothing to copy. Next: zero test")
+		return nil
+	}
+	a.out.line("To copy the files, run: zero use %s", next)
 	return nil
+}
+
+// isDir reports whether path is a folder.
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }

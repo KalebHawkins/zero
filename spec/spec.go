@@ -196,11 +196,25 @@ type Project struct {
 	TestStages map[string]int `json:"test_stages,omitempty"`
 }
 
-// Use names a finished exercise whose files a stage may copy into the
-// project with `zero use`.
+// Use names a finished exercise a stage builds on. With Copy, `zero use`
+// copies those files into the project. With no Copy, the entry is a
+// prerequisite: the stage builds on what that exercise taught, and there is
+// nothing to copy. Title is the exercise's title; older servers do not send it.
 type Use struct {
 	Exercise string `json:"exercise"`
+	Title    string `json:"title,omitempty"`
 	Copy     []Copy `json:"copy"`
+}
+
+// CopiesFiles reports whether `zero use` copies files for this entry.
+func (u Use) CopiesFiles() bool { return len(u.Copy) > 0 }
+
+// Name is the exercise's title, or its id when the server sent no title.
+func (u Use) Name() string {
+	if u.Title != "" {
+		return u.Title
+	}
+	return u.Exercise
 }
 
 // Copy is one file of a Use. From is a path in the exercise folder; To is a

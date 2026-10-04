@@ -100,7 +100,7 @@ func (a *app) start() error {
 		for _, f := range res.Kept {
 			a.out.line("Kept your %s.", f)
 		}
-		a.printUses(resp.Uses)
+		a.printUses(res.Dir, resp.Uses)
 	} else {
 		a.out.line("%s is ready in %s", a.out.bold(resp.Exercise.Title), res.Dir)
 		for _, f := range res.Kept {
@@ -111,7 +111,7 @@ func (a *app) start() error {
 	a.out.line("Next:")
 	a.out.line("  cd %s", res.Dir)
 	for _, u := range resp.Uses {
-		if len(u.Copy) > 0 {
+		if u.CopiesFiles() && !workspace.Present(res.Dir, u) {
 			a.out.line("  zero use %s", u.Exercise)
 		}
 	}
@@ -119,19 +119,27 @@ func (a *app) start() error {
 	return nil
 }
 
-// printUses says that the stage builds on the learner's code from other
-// exercises, and that `zero use` must copy it in before `zero test`.
-func (a *app) printUses(uses []spec.Use) {
+// printUses says what the stage builds on. A prerequisite has nothing to
+// copy. An entry with files says to copy them in with `zero use` before
+// `zero test`, unless every file is in the project already.
+func (a *app) printUses(dir string, uses []spec.Use) {
 	for _, u := range uses {
-		if len(u.Copy) == 0 {
-			continue
-		}
 		a.out.blank()
-		a.out.line("This stage builds on your code from %s. Before zero test, copy it in with: zero use %s", u.Exercise, u.Exercise)
-		for _, c := range u.Copy {
-			a.out.line("  %s -> %s", c.From, c.To)
+		switch {
+		case !u.CopiesFiles():
+			a.out.line("This stage builds on %s. There is nothing to copy.", u.Name())
+		case workspace.Present(dir, u):
+			a.out.line("This stage builds on your code from %s. It is already in the project:", u.Name())
+			for _, c := range u.Copy {
+				a.out.line("  %s", c.To)
+			}
+		default:
+			a.out.line("This stage builds on your code from %s. Before zero test, copy it in with: zero use %s", u.Name(), u.Exercise)
+			for _, c := range u.Copy {
+				a.out.line("  %s -> %s", c.From, c.To)
+			}
+			a.out.line("This stage's code calls it, so without it the build fails.")
 		}
-		a.out.line("This stage's code calls it, so without it the build fails.")
 	}
 }
 

@@ -358,13 +358,27 @@ func buildError(res *Result, stderr string) string {
 	if strings.TrimSpace(text) == "" {
 		text = res.Other
 	}
+	// The same error comes once for each package that builds the broken file
+	// (the package, its test binary, the packages that import it, and vet).
+	// The learner sees each line once, in the order it first came.
 	var out []string
+	seen := map[string]bool{}
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimRight(line, " \t\r")
 		// "# hello [hello.test]" names the package; "FAIL ..." repeats the result.
 		if strings.HasPrefix(line, "# ") || strings.HasPrefix(line, "FAIL") {
 			continue
 		}
+		if strings.TrimSpace(line) == "" {
+			if len(out) > 0 && out[len(out)-1] != "" {
+				out = append(out, "")
+			}
+			continue
+		}
+		if seen[line] {
+			continue
+		}
+		seen[line] = true
 		out = append(out, line)
 	}
 	text = strings.TrimSpace(strings.Join(out, "\n"))

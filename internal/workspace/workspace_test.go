@@ -258,3 +258,23 @@ func TestCheckWritable(t *testing.T) {
 		t.Error("a plain file passed as a workspace folder")
 	}
 }
+
+func TestPresent(t *testing.T) {
+	dir := t.TempDir()
+	use := spec.Use{Exercise: "pixels", Copy: []spec.Copy{{From: "a.go", To: "x/a.go"}, {From: "b.go", To: "b.go"}}}
+	if Present(dir, use) {
+		t.Error("Present with no files")
+	}
+	os.MkdirAll(filepath.Join(dir, "x"), 0o755)
+	os.WriteFile(filepath.Join(dir, "x", "a.go"), []byte("package x\n"), 0o644)
+	if Present(dir, use) {
+		t.Error("Present with one of two files")
+	}
+	os.WriteFile(filepath.Join(dir, "b.go"), []byte("package x\n"), 0o644)
+	if !Present(dir, use) {
+		t.Error("not Present with every file")
+	}
+	if Present(dir, spec.Use{Exercise: "keys"}) {
+		t.Error("an entry with nothing to copy has no files to be present")
+	}
+}

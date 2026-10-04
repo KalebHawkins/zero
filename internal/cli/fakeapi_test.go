@@ -391,7 +391,14 @@ func (f *fakeAPI) getExercise(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		resp.Project, resp.Uses = p, e.uses
+		// As the platform does: each use carries the used exercise's title.
+		resp.Project = p
+		for _, u := range e.uses {
+			if used := f.entries[u.Exercise]; used != nil {
+				u.Title = used.exercise.Title
+			}
+			resp.Uses = append(resp.Uses, u)
+		}
 		if r.URL.Query().Get("reference") == "1" {
 			f.references = append(f.references, id)
 			if e.stage > 1 {

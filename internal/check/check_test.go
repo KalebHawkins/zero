@@ -1,6 +1,7 @@
 package check
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -272,5 +273,25 @@ func TestRegressions(t *testing.T) {
 	broken := parseFixture(t, "compile-error.json")
 	if rep := ProjectReport(stage, broken, "", true, meta); len(rep.Regressions) != 0 || rep.BuildError == "" {
 		t.Errorf("compile error: regressions %+v", rep.Regressions)
+	}
+}
+
+// One missing package breaks the build of every package that imports it, and
+// go test prints the same error for each. The report shows it once.
+func TestCompileErrorPrintedOnce(t *testing.T) {
+	const line = `cmd/life-window/main.go:10:2: package gameoflife/internal/pixels is not in std`
+	var stream strings.Builder
+	for _, pkg := range []string{"cmd/life-window", "cmd/shot", "internal/world"} {
+		fmt.Fprintf(&stream, `{"ImportPath":"gameoflife/internal/pixels","Action":"build-output","Output":"# gameoflife/%s\n"}`+"\n", pkg)
+		fmt.Fprintf(&stream, `{"ImportPath":"gameoflife/internal/pixels","Action":"build-output","Output":"%s\n"}`+"\n", line)
+	}
+	stream.WriteString(`{"ImportPath":"gameoflife/internal/pixels","Action":"build-fail"}` + "\n")
+	res, err := Parse(strings.NewReader(stream.String()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ex := spec.Exercise{ID: "x", Checker: spec.CheckerGoTest, Tasks: []spec.Task{{N: 1, Title: "One", Tests: []string{"TestA"}}}}
+	if rep := Report(ex, res, "", true, meta); rep.BuildError != line {
+		t.Errorf("build_error = %q, want the error once", rep.BuildError)
 	}
 }

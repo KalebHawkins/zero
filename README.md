@@ -283,3 +283,7 @@ It starts a fake site in the test, then runs login, start, test and submit again
 That test runs the real `go` command on the hello-world exercise.
 
 The package `spec` holds the JSON types that the command and the site share.
+
+## License
+
+Apache License 2.0. See `LICENSE`.

@@ -31,7 +31,7 @@ func TestExamplesRoundTrip(t *testing.T) {
 				"tests": [ { "name": "TestHello", "status": "fail",
 					"message": "Hello() = \"Goodbye, World\", want \"Hello, World\"" } ] } ] }`, &Report{}},
 		"Doctor": {`{ "ok": true, "at": "2026-10-04T15:04:05Z", "cli": "0.1.0",
-			"checks": [ { "name": "go", "ok": true, "detail": "go1.26.3", "fix": "" } ] }`, &Doctor{}},
+			"checks": [ { "name": "go", "ok": true, "detail": "go1.27.1", "fix": "" } ] }`, &Doctor{}},
 		"User":   {`{"id": "github:123", "login": "kryo", "name": "Kaleb", "avatar": "https://example.org/a.png"}`, &User{}},
 		"File":   {`{ "path": "hello.go", "content": "package hello\n", "mode": "edit" }`, &File{}},
 		"Next":   {`{ "kind": "exercise", "id": "variables", "title": "Variables" }`, &Next{}},

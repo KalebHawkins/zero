@@ -18,7 +18,7 @@ import (
 )
 
 // The oldest Go that the exercises accept.
-const minGoMajor, minGoMinor = 1, 25
+const minGoMajor, minGoMinor = 1, 27
 
 // doctor checks that this computer is ready. It starts only command-line
 // tools with a version flag; it never opens a window.
@@ -160,7 +160,7 @@ func toolVersion(name, arg string) (string, error) {
 var goVersionRE = regexp.MustCompile(`go(\d+)\.(\d+)(\.\d+|rc\d+|beta\d+)?`)
 
 // parseGoVersion finds the version in the output of `go version`, for
-// example "go version go1.26.3 linux/amd64".
+// example "go version go1.27.1 linux/amd64".
 func parseGoVersion(out string) (version string, major, minor int, ok bool) {
 	m := goVersionRE.FindStringSubmatch(out)
 	if m == nil {

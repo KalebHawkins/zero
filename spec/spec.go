@@ -3,6 +3,11 @@
 // The package has no dependencies, so the API and the site can import it.
 package spec
 
+import (
+	"encoding/base64"
+	"fmt"
+)
+
 // Status values of a test and of a task in a Report.
 const (
 	StatusPass = "pass"
@@ -52,11 +57,28 @@ type Hint struct {
 	Text  string `json:"text"`
 }
 
-// File is one file of an exercise. Mode is "edit" or "given".
+// File is one file of an exercise. Mode is "edit" or "given". A file
+// that is not UTF-8 text, such as a PNG, has Encoding "base64" and its
+// Content is the base64 of its bytes; Data decodes either form.
 type File struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
-	Mode    string `json:"mode,omitempty"`
+	Path     string `json:"path"`
+	Content  string `json:"content"`
+	Mode     string `json:"mode,omitempty"`
+	Encoding string `json:"encoding,omitempty"`
+}
+
+// EncodingBase64 marks a File whose Content is base64.
+const EncodingBase64 = "base64"
+
+// Data returns the bytes of the file.
+func (f File) Data() ([]byte, error) {
+	if f.Encoding == EncodingBase64 {
+		return base64.StdEncoding.DecodeString(f.Content)
+	}
+	if f.Encoding != "" {
+		return nil, fmt.Errorf("%s: unknown encoding %q", f.Path, f.Encoding)
+	}
+	return []byte(f.Content), nil
 }
 
 // Next names what a learner does next. A nil *Next means the path has

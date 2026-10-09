@@ -13,6 +13,7 @@
 package workspace
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -150,8 +151,12 @@ func write(root string, resp *spec.ExerciseResponse, force, reference bool) (*Wr
 		if force || (f.Mode != spec.ModeEdit && !edit[f.Path]) {
 			continue
 		}
+		data, err := f.Data()
+		if err != nil {
+			return nil, err
+		}
 		old, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(f.Path)))
-		if errors.Is(err, fs.ErrNotExist) || (err == nil && string(old) == f.Content) {
+		if errors.Is(err, fs.ErrNotExist) || (err == nil && bytes.Equal(old, data)) {
 			continue
 		}
 		exists = append(exists, f.Path)
@@ -164,7 +169,11 @@ func write(root string, resp *spec.ExerciseResponse, force, reference bool) (*Wr
 		return nil, err
 	}
 	for _, f := range ref {
-		if err := writeFile(filepath.Join(dir, filepath.FromSlash(f.Path)), []byte(f.Content)); err != nil {
+		data, err := f.Data()
+		if err != nil {
+			return nil, err
+		}
+		if err := writeFile(filepath.Join(dir, filepath.FromSlash(f.Path)), data); err != nil {
 			return nil, err
 		}
 		res.Reference = append(res.Reference, f.Path)
@@ -177,7 +186,11 @@ func write(root string, resp *spec.ExerciseResponse, force, reference bool) (*Wr
 				continue
 			}
 		}
-		if err := writeFile(target, []byte(f.Content)); err != nil {
+		data, err := f.Data()
+		if err != nil {
+			return nil, err
+		}
+		if err := writeFile(target, data); err != nil {
 			return nil, err
 		}
 		res.Written = append(res.Written, f.Path)

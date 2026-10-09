@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -276,5 +277,26 @@ func TestPresent(t *testing.T) {
 	}
 	if Present(dir, spec.Use{Exercise: "keys"}) {
 		t.Error("an entry with nothing to copy has no files to be present")
+	}
+}
+
+func TestWriteDecodesBase64Files(t *testing.T) {
+	png := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0xff, 0x00}
+	resp := response()
+	resp.Files = append(resp.Files, spec.File{
+		Path: "sheet.png", Content: base64.StdEncoding.EncodeToString(png),
+		Mode: spec.ModeGiven, Encoding: spec.EncodingBase64,
+	})
+	root := t.TempDir()
+	if _, err := Write(root, resp, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, root, "hello-world", "sheet.png"); got != string(png) {
+		t.Errorf("sheet.png = %q, want %q", got, png)
+	}
+
+	resp.Files[len(resp.Files)-1].Encoding = "rot13"
+	if _, err := Write(t.TempDir(), resp, false); err == nil {
+		t.Error("Write accepted an unknown encoding")
 	}
 }

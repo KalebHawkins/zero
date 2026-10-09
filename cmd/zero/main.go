@@ -3,14 +3,29 @@ package main
 
 import (
 	"os"
+	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/KalebHawkins/zero/internal/cli"
 )
 
 // version is the release. A build can replace it with
-// -ldflags "-X main.version=1.2.3".
-var version = "0.3.1"
+// -ldflags "-X main.version=1.2.3". `go install ...@v1.2.3` records the
+// tag in the build info, and release prefers that.
+var version = "0.3.3"
+
+// release returns the module's tag without its "v" when go install
+// recorded one, and version otherwise.
+func release() string {
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		v := bi.Main.Version
+		if strings.HasPrefix(v, "v") && !strings.Contains(v, "-0.") && !strings.Contains(v, "+dirty") {
+			return strings.TrimPrefix(v, "v")
+		}
+	}
+	return version
+}
 
 func main() {
 	dir, err := os.Getwd()
@@ -18,7 +33,7 @@ func main() {
 		dir = "."
 	}
 	os.Exit(cli.Run(os.Args[1:], cli.Env{
-		Version:     version,
+		Version:     release(),
 		Stdin:       os.Stdin,
 		Stdout:      os.Stdout,
 		Stderr:      os.Stderr,

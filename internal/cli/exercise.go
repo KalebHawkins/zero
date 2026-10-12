@@ -119,28 +119,60 @@ func (a *app) start() error {
 	return nil
 }
 
-// printUses says what the stage builds on. A prerequisite has nothing to
-// copy. An entry with files says to copy them in with `zero use` before
-// `zero test`, unless every file is in the project already.
+// printUses says what the stage builds on. Entries with files to copy come
+// first, each with its zero use command, followed by one line on why they are
+// needed. Entries whose files are in the project already list them. Entries
+// with nothing to copy share one line.
 func (a *app) printUses(dir string, uses []spec.Use) {
+	var toCopy, nothing []spec.Use
 	for _, u := range uses {
-		a.out.blank()
 		switch {
 		case !u.CopiesFiles():
-			a.out.line("This stage builds on %s. There is nothing to copy.", u.Name())
+			nothing = append(nothing, u)
 		case workspace.Present(dir, u):
+			a.out.blank()
 			a.out.line("This stage builds on your code from %s. It is already in the project:", u.Name())
 			for _, c := range u.Copy {
 				a.out.line("  %s", c.To)
 			}
 		default:
+			toCopy = append(toCopy, u)
+		}
+	}
+	if len(toCopy) > 0 {
+		a.out.blank()
+		for _, u := range toCopy {
 			a.out.line("This stage builds on your code from %s. Before zero test, copy it in with: zero use %s", u.Name(), u.Exercise)
 			for _, c := range u.Copy {
 				a.out.line("  %s -> %s", c.From, c.To)
 			}
+		}
+		if len(toCopy) == 1 {
 			a.out.line("This stage's code calls it, so without it the build fails.")
+		} else {
+			a.out.line("This stage's code calls all %d, so without them the build fails.", len(toCopy))
 		}
 	}
+	if len(nothing) > 0 {
+		names := make([]string, len(nothing))
+		for i, u := range nothing {
+			names[i] = u.Name()
+		}
+		a.out.blank()
+		if len(nothing) == 1 {
+			a.out.line("This stage builds on %s. There is nothing to copy.", names[0])
+		} else {
+			a.out.line("This stage builds on %s. There is nothing to copy from them.", listOf(names))
+		}
+	}
+}
+
+// listOf joins names as "A and B" or "A, B and C".
+func listOf(names []string) string {
+	if len(names) < 2 {
+		return strings.Join(names, "")
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
 }
 
 // exercise finds the exercise that holds the current folder.

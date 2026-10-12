@@ -150,7 +150,7 @@ func (a *app) printUses(dir string, uses []spec.Use) {
 		if len(toCopy) == 1 {
 			a.out.line("This stage's code calls it, so without it the build fails.")
 		} else {
-			a.out.line("This stage's code calls all %d, so without them the build fails.", len(toCopy))
+			a.out.line("This stage's code calls each of them, so without them the build fails.")
 		}
 	}
 	if len(nothing) > 0 {

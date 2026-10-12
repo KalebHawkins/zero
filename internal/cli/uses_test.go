@@ -23,7 +23,7 @@ func TestPrintUsesSaysEachThingOnce(t *testing.T) {
 	for _, want := range []string{
 		"copy it in with: zero use vectors\n  vec.go -> internal/v/vec.go\n",
 		"copy it in with: zero use bezier\n  bezier.go -> internal/v/bezier.go\n",
-		"This stage's code calls all 2, so without them the build fails.",
+		"This stage's code calls each of them, so without them the build fails.",
 		"This stage builds on Scattering from a seed and The game loop. There is nothing to copy from them.",
 	} {
 		if !strings.Contains(out, want) {

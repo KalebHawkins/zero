@@ -63,8 +63,11 @@ func TestProjectEndToEnd(t *testing.T) {
 	// Stage 2 keeps the learner's rules.go and adds its own files.
 	out = h.ok("start", "life-2")
 	wantContains(t, "start life-2", out, "Life, stage 2 of 2: Count the neighbors is ready in "+dir,
-		"This stage builds on your code from Wrap. Before zero test, copy it in with: zero use wrap\n  wrap.go -> wrap.go\nThis stage's code calls it, so without it the build fails.",
+		"This stage builds on your code from: Wrap. Copy it in before zero test, or the build fails.",
 		"  zero use wrap\n  zero test")
+	if n := strings.Count(out, "zero use wrap"); n != 1 {
+		t.Errorf("start names zero use wrap %d times, want once:\n%s", n, out)
+	}
 	if strings.Contains(out, "Kept your") {
 		t.Errorf("stage 2 start says it kept a file, but every file it sends is new:\n%s", out)
 	}

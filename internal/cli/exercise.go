@@ -107,6 +107,9 @@ func (a *app) start() error {
 			a.out.line("Kept your %s. To replace it with the starter file, run: zero start %s --force", f, id)
 		}
 	}
+	if resp.Exercise.Checker == spec.CheckerLab {
+		a.out.line("This stage needs podman: run zero doctor")
+	}
 	a.out.blank()
 	a.out.line("Next:")
 	a.out.line("  cd %s", res.Dir)
@@ -119,10 +122,10 @@ func (a *app) start() error {
 	return nil
 }
 
-// printUses says what the stage builds on. Entries with files to copy come
-// first, each with its zero use command, followed by one line on why they are
-// needed. Entries whose files are in the project already list them. Entries
-// with nothing to copy share one line.
+// printUses says what the stage builds on. Entries with files to copy share
+// one line; their zero use commands are listed once, under Next. Entries
+// whose files are in the project already list them. Entries with nothing to
+// copy share one line.
 func (a *app) printUses(dir string, uses []spec.Use) {
 	var toCopy, nothing []spec.Use
 	for _, u := range uses {
@@ -140,18 +143,16 @@ func (a *app) printUses(dir string, uses []spec.Use) {
 		}
 	}
 	if len(toCopy) > 0 {
+		names := make([]string, len(toCopy))
+		for i, u := range toCopy {
+			names[i] = u.Name()
+		}
 		a.out.blank()
-		for _, u := range toCopy {
-			a.out.line("This stage builds on your code from %s. Before zero test, copy it in with: zero use %s", u.Name(), u.Exercise)
-			for _, c := range u.Copy {
-				a.out.line("  %s -> %s", c.From, c.To)
-			}
+		them := "it"
+		if len(toCopy) > 1 {
+			them = "them"
 		}
-		if len(toCopy) == 1 {
-			a.out.line("This stage's code calls it, so without it the build fails.")
-		} else {
-			a.out.line("This stage's code calls each of them, so without them the build fails.")
-		}
+		a.out.line("This stage builds on your code from: %s. Copy %s in before zero test, or the build fails.", strings.Join(names, ", "), them)
 	}
 	if len(nothing) > 0 {
 		names := make([]string, len(nothing))
@@ -380,7 +381,7 @@ func (a *app) next() error {
 	if err != nil {
 		return err
 	}
-	// With no path chosen, the server follows The Combined Path; say how to choose.
+	// With no path chosen, the server follows TheWorld; say how to choose.
 	if st, err := client.State(); err == nil && st.Path == "" {
 		cfg, _ := a.settings()
 		where := "the site"
@@ -392,7 +393,7 @@ func (a *app) next() error {
 			return nil
 		}
 		a.printNext(next)
-		a.out.line("You have not chosen a path yet, so this follows The Combined Path. To choose one, go to %s", where)
+		a.out.line("You have not chosen a path yet, so this follows TheWorld. To choose one, go to %s", where)
 		return nil
 	}
 	a.printNext(next)

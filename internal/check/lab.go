@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/KalebHawkins/zero/spec"
@@ -32,19 +33,39 @@ func (e *PodmanError) Error() string { return "podman info failed: " + e.Output 
 // The tests replace it, so no test needs podman.
 type Runner func(ctx context.Context, dir string, env []string, name string, args ...string) (stdout, stderr []byte, err error)
 
-// Exec is the Runner that starts real programs. When ctx ends, the program
-// gets an interrupt, and a kill 10 seconds later.
+// Exec is the Runner that starts real programs. On Unix each program starts
+// in a process group of its own, so the interrupt a terminal sends on Ctrl+C
+// reaches zero alone: a podman build that go test started is not cut off
+// halfway. When ctx ends, the program gets one interrupt and is waited for.
+// go test then starts nothing new and lets the running test end. A program
+// still running stopWait later is killed with its whole group.
 func Exec(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, []byte, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), env...)
-	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
-	cmd.WaitDelay = 10 * time.Second
+	cmd.SysProcAttr = ownGroup()
+	var kill atomic.Pointer[time.Timer]
+	cmd.Cancel = func() error {
+		if err := cmd.Process.Signal(os.Interrupt); err != nil {
+			// Windows has no interrupt to send.
+			return killGroup(cmd.Process)
+		}
+		kill.Store(time.AfterFunc(stopWait, func() { killGroup(cmd.Process) }))
+		return nil
+	}
+	cmd.WaitDelay = stopWait + 10*time.Second
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
+	if t := kill.Load(); t != nil {
+		t.Stop()
+	}
 	return stdout.Bytes(), stderr.Bytes(), err
 }
+
+// stopWait is how long Exec waits for a program after its interrupt: long
+// enough for a running image build to finish.
+var stopWait = 3 * time.Minute
 
 // podmanInfoTimeout limits `podman info`, which hangs while a podman
 // machine starts.
@@ -102,6 +123,7 @@ func PodmanReady(ctx context.Context, run Runner, dir string) error {
 // regressions from every other test.
 //
 //  1. `podman info`, so a missing podman is named before anything runs;
+//     then ready, when it is not nil, is called;
 //  2. `go test -json ./...`: the earlier stages' tests, as regressions;
 //  3. the stage's container, volume and image are removed by name;
 //  4. `go test -tags lab -json -count=1 -timeout <t>s ./lab/` with the names
@@ -109,9 +131,9 @@ func PodmanReady(ctx context.Context, run Runner, dir string) error {
 //  5. the three objects are removed by name again, however the tests ended.
 //
 // When the code does not compile in step 2, the lab tests do not run. When
-// ctx ends (Ctrl+C), the tests stop, step 5 still runs, and Lab returns the
-// error of ctx.
-func Lab(ctx context.Context, dir string, ex spec.Exercise, run Runner, cliVersion string, now func() time.Time) (spec.Report, error) {
+// ctx ends (Ctrl+C), the running test ends first (see Exec), step 5 still
+// runs, and Lab returns the error of ctx.
+func Lab(ctx context.Context, dir string, ex spec.Exercise, run Runner, cliVersion string, now func() time.Time, ready func()) (spec.Report, error) {
 	if ex.Lab == nil {
 		return spec.Report{}, fmt.Errorf("the exercise %s uses the checker %q but has no lab settings", ex.ID, spec.CheckerLab)
 	}
@@ -119,6 +141,9 @@ func Lab(ctx context.Context, dir string, ex spec.Exercise, run Runner, cliVersi
 	start := now()
 	if err := PodmanReady(ctx, run, dir); err != nil {
 		return spec.Report{}, err
+	}
+	if ready != nil {
+		ready()
 	}
 
 	// The earlier stages' tests. The lab tests have the build tag lab, so

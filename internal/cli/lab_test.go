@@ -88,9 +88,12 @@ func TestLabStageTest(t *testing.T) {
 		labFolder(t, h)
 		var calls []string
 		h.runner = labRunner(&calls, fmt.Errorf("exec: \"podman\": %w", exec.ErrNotFound), "pass")
-		code, _, stderr := h.run("test")
+		code, stdout, stderr := h.run("test")
 		if code != 1 {
 			t.Errorf("exit code %d, want 1", code)
+		}
+		if strings.Contains(stdout, "builds and runs a container") {
+			t.Errorf("zero test talks about the container run without podman:\n%s", stdout)
 		}
 		wantContains(t, "stderr", stderr, "the podman command was not found", "https://podman.io/docs/installation", "podman machine init", "podman machine start")
 		if len(h.fake.runs) != 0 || len(calls) != 1 {
@@ -123,4 +126,23 @@ func TestLabStageTest(t *testing.T) {
 		}
 		wantContains(t, "zero submit", stdout, "✗ Task 1: Build the image", "Not submitted")
 	})
+}
+
+// zero start names the podman need of a lab stage before the first zero test.
+func TestLabStageStart(t *testing.T) {
+	h := newHarness(t)
+	h.signIn()
+	ex := spec.Exercise{
+		ID: "box-1", Title: "Running it in a container", Checker: spec.CheckerLab,
+		Tasks: []spec.Task{{N: 1, Title: "Build the image", Tests: []string{"TestImageBuilds"}}},
+		Lab: &spec.Lab{Images: []string{"docker.io/library/golang:1.27"}, Timeout: 600,
+			Names: spec.LabNames{Image: "zero-lab-box", Container: "zero-lab-box", Volume: "zero-lab-box-data"}},
+	}
+	h.fake.entries["box-1"] = &fakeEntry{exercise: ex,
+		files: []spec.File{{Path: "Containerfile", Mode: "edit", Content: "FROM docker.io/library/golang:1.27\n"}}}
+	out := h.ok("start", "box-1")
+	wantContains(t, "zero start", out, "This stage needs podman: run zero doctor\n")
+	if strings.Contains(out, "builds and runs a container") {
+		t.Errorf("zero start talks about the container run before podman is checked:\n%s", out)
+	}
 }

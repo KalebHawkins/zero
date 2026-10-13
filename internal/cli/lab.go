@@ -11,8 +11,8 @@ import (
 )
 
 // runLab runs the checks of a lab stage (docs/SPEC.md section 5). Ctrl+C
-// stops the tests, and the stage's container, volume and image are still
-// removed by name.
+// lets the running test end, and the stage's container, volume and image are
+// then removed by name.
 func (a *app) runLab(dir string, ex spec.Exercise) (spec.Report, error) {
 	if ex.Lab == nil {
 		return spec.Report{}, fail("This stage runs in a container, but %s has no lab settings saved. Get the stage again with: zero start %s", dir, ex.ID)
@@ -21,11 +21,28 @@ func (a *app) runLab(dir string, ex spec.Exercise) (spec.Report, error) {
 	if run == nil {
 		run = check.Exec
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-	a.out.line("This stage builds and runs a container with podman. The first run downloads the base images and can take a few minutes.")
-	a.out.blank()
-	rep, err := check.Lab(ctx, dir, ex, run, a.Version, a.Now)
+	// The first Ctrl+C stops the stage: the running test ends, then the
+	// stage's objects are removed by name.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+	defer signal.Stop(interrupt)
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-interrupt:
+			a.out.line("Stopping. The running test ends first, then the stage's container, volume and image are removed.")
+			cancel()
+		case <-done:
+		}
+	}()
+	ready := func() {
+		a.out.line("This stage builds and runs a container with podman. The first run downloads the base images and can take a few minutes.")
+		a.out.blank()
+	}
+	rep, err := check.Lab(ctx, dir, ex, run, a.Version, a.Now, ready)
 	var podman *check.PodmanError
 	switch {
 	case errors.Is(err, check.ErrNoPodman):

@@ -8,8 +8,9 @@ import (
 	"github.com/KalebHawkins/zero/spec"
 )
 
-// A stage with several uses says why the copies are needed once, and lists
-// the uses with nothing to copy on one line.
+// A stage with several uses names the copies on one line, leaves their
+// zero use commands to the Next block, and lists the uses with nothing to
+// copy on one line.
 func TestPrintUsesSaysEachThingOnce(t *testing.T) {
 	var b bytes.Buffer
 	a := &app{out: newPrinter(&b, false)}
@@ -21,16 +22,19 @@ func TestPrintUsesSaysEachThingOnce(t *testing.T) {
 	})
 	out := b.String()
 	for _, want := range []string{
-		"copy it in with: zero use vectors\n  vec.go -> internal/v/vec.go\n",
-		"copy it in with: zero use bezier\n  bezier.go -> internal/v/bezier.go\n",
-		"This stage's code calls each of them, so without them the build fails.",
+		"This stage builds on your code from: Vectors, Curves. Copy them in before zero test, or the build fails.\n",
 		"This stage builds on Scattering from a seed and The game loop. There is nothing to copy from them.",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output lacks %q:\n%s", want, out)
 		}
 	}
-	if n := strings.Count(out, "the build fails"); n != 1 {
-		t.Errorf("\"the build fails\" appears %d times, want 1:\n%s", n, out)
+	for _, once := range []string{"the build fails", "Vectors", "Curves"} {
+		if n := strings.Count(out, once); n != 1 {
+			t.Errorf("%q appears %d times, want 1:\n%s", once, n, out)
+		}
+	}
+	if strings.Contains(out, "zero use") {
+		t.Errorf("printUses names a zero use command; the Next block lists them:\n%s", out)
 	}
 }

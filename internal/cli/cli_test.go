@@ -756,7 +756,7 @@ func TestNextWithNoPath(t *testing.T) {
 	h.fake.pathSet, h.fake.path = true, ""
 	out := h.ok("next")
 	wantContains(t, "next with no path", out, "Next: Hello, World. Run: zero start hello-world",
-		"You have not chosen a path yet, so this follows The Combined Path. To choose one, go to "+h.fake.siteRoot+"/path/")
+		"You have not chosen a path yet, so this follows TheWorld. To choose one, go to "+h.fake.siteRoot+"/path/")
 	h.fake.passed, h.fake.next = true, nil
 	out = h.ok("next")
 	if strings.TrimSpace(out) != "You have not chosen a path yet. Choose one at "+h.fake.siteRoot+"/path/, then run: zero next" {

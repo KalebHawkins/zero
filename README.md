@@ -229,6 +229,8 @@ Its tests are in the folder `lab/`.
 Then it runs the lab tests with `go test -tags lab ./lab/`.
 The tests make one image, one container and one volume, with names that start with `zero-lab-`.
 `zero test` removes those three by name before and after the tests, even when you press Ctrl+C.
+When you press Ctrl+C, the running test ends first, so an image build is not cut off halfway.
+Then the three are removed.
 It never removes anything else, so the base images stay for the next run.
 
 The first run downloads the base images and can take a few minutes.

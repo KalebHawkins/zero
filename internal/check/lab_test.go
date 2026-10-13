@@ -95,11 +95,12 @@ func TestLabRunsInOrder(t *testing.T) {
 		}
 		return "", "Error: no such object", exitErr // every cleanup finds nothing
 	}}
-	rep, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock())
+	ready := func() { f.calls = append(f.calls, "ready") }
+	rep, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock(), ready)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"podman info", regressions, cleanupRm, cleanupVol, cleanupRmi, labRun, cleanupRm, cleanupVol, cleanupRmi}
+	want := []string{"podman info", "ready", regressions, cleanupRm, cleanupVol, cleanupRmi, labRun, cleanupRm, cleanupVol, cleanupRmi}
 	if !slices.Equal(f.calls, want) {
 		t.Errorf("calls:\n  %s\nwant:\n  %s", strings.Join(f.calls, "\n  "), strings.Join(want, "\n  "))
 	}
@@ -126,7 +127,7 @@ func TestLabPasses(t *testing.T) {
 		}
 		return "", "", nil
 	}}
-	rep, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock())
+	rep, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock(), nil)
 	if err != nil || !rep.OK || rep.BuildError != "" {
 		t.Fatalf("Lab = %+v, %v; want a passing report", rep, err)
 	}
@@ -142,7 +143,7 @@ func TestLabReportsRegressions(t *testing.T) {
 		}
 		return "", "", nil
 	}}
-	rep, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock())
+	rep, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +162,7 @@ func TestLabStopsAtABuildError(t *testing.T) {
 		}
 		return "", "", nil
 	}}
-	rep, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock())
+	rep, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -178,7 +179,8 @@ func TestLabNeedsPodman(t *testing.T) {
 		f := &fakeRun{reply: func(call string) (string, string, error) {
 			return "", "", fmt.Errorf("exec: %q: %w", "podman", exec.ErrNotFound)
 		}}
-		if _, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock()); !errors.Is(err, ErrNoPodman) {
+		ready := func() { f.calls = append(f.calls, "ready") }
+		if _, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock(), ready); !errors.Is(err, ErrNoPodman) {
 			t.Errorf("Lab = %v, want ErrNoPodman", err)
 		}
 		if len(f.calls) != 1 {
@@ -189,7 +191,7 @@ func TestLabNeedsPodman(t *testing.T) {
 		f := &fakeRun{reply: func(call string) (string, string, error) {
 			return "", "Cannot connect to Podman. Please verify your connection to the Linux system\n", exitErr
 		}}
-		_, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock())
+		_, err := Lab(context.Background(), "/p", worldd, f.run, "0.4.0", clock(), nil)
 		var pe *PodmanError
 		if !errors.As(err, &pe) || !strings.Contains(pe.Output, "Cannot connect to Podman") {
 			t.Errorf("Lab = %v, want a PodmanError with what podman said", err)
@@ -197,7 +199,8 @@ func TestLabNeedsPodman(t *testing.T) {
 	})
 }
 
-// Ctrl+C during the lab tests: the objects are still removed by name.
+// Ctrl+C during the lab tests: the running test ends first, and the objects
+// are then removed by name.
 func TestLabCleansUpWhenStopped(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &fakeRun{cancel: cancel, reply: func(call string) (string, string, error) {
@@ -206,11 +209,11 @@ func TestLabCleansUpWhenStopped(t *testing.T) {
 		}
 		return "", "", nil
 	}}
-	if _, err := Lab(ctx, "/p", worldd, f.run, "0.4.0", clock()); !errors.Is(err, context.Canceled) {
+	if _, err := Lab(ctx, "/p", worldd, f.run, "0.4.0", clock(), nil); !errors.Is(err, context.Canceled) {
 		t.Errorf("Lab = %v, want context.Canceled", err)
 	}
-	if n := len(f.calls); n < 3 || !slices.Equal(f.calls[n-3:], []string{cleanupRm, cleanupVol, cleanupRmi}) {
-		t.Errorf("calls end with %q; want the cleanup by name", f.calls)
+	if n := len(f.calls); n < 4 || !slices.Equal(f.calls[n-4:], []string{labRun, cleanupRm, cleanupVol, cleanupRmi}) {
+		t.Errorf("calls end with %q; want the lab tests, then the cleanup by name", f.calls)
 	}
 }
 
@@ -218,7 +221,7 @@ func TestLabNeedsItsSettings(t *testing.T) {
 	ex := worldd
 	ex.Lab = nil
 	f := &fakeRun{}
-	if _, err := Lab(context.Background(), "/p", ex, f.run, "0.4.0", clock()); err == nil || len(f.calls) != 0 {
+	if _, err := Lab(context.Background(), "/p", ex, f.run, "0.4.0", clock(), nil); err == nil || len(f.calls) != 0 {
 		t.Errorf("Lab with no lab block = %v after %q; want an error and no command", err, f.calls)
 	}
 }

@@ -58,7 +58,7 @@ A required check that fails shows ✗, and `zero doctor` exits with code 1.
 `podman`, `cc` and `editor` are optional checks.
 A missing optional tool shows `-` and the word "optional".
 It is a note, not a failure: `zero doctor` still says the computer is ready.
-You need podman only when an exercise asks for containers.
+You need podman only for a stage that runs a container.
 You need a C compiler only for window exercises on Linux.
 
 To report a problem, run `zero doctor --report` and paste the output into the issue.
@@ -220,6 +220,20 @@ Tasks passed: 0 of 1. An earlier stage broke. Fix the earlier stage first, then 
 Fix the earlier stage first.
 `zero submit` refuses while any regression is left.
 When every test passes, `zero submit` sends every file you edit in the project, from every stage.
+
+### Stages that run a container
+
+A lab stage builds your project into an image with podman and checks what the container does.
+Its tests are in the folder `lab/`.
+`zero test` on a lab stage runs every earlier test first, as above.
+Then it runs the lab tests with `go test -tags lab ./lab/`.
+The tests make one image, one container and one volume, with names that start with `zero-lab-`.
+`zero test` removes those three by name before and after the tests, even when you press Ctrl+C.
+It never removes anything else, so the base images stay for the next run.
+
+The first run downloads the base images and can take a few minutes.
+Without podman, `zero test` says how to install it and stops.
+On macOS and Windows, podman runs in a small Linux machine: run `podman machine init` once, then `podman machine start`.
 
 ## Configuration
 

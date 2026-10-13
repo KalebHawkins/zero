@@ -215,7 +215,7 @@ func checkPodman() spec.Check {
 	out, err := toolVersion("podman", "--version")
 	if err != nil {
 		c.Detail = "the podman command was not found"
-		c.Fix = "Install podman from https://podman.io when an exercise asks for containers."
+		c.Fix = "Install podman from https://podman.io/docs/installation before a stage that runs a container."
 		return c
 	}
 	c.OK, c.Detail = true, out

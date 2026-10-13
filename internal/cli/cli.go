@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/KalebHawkins/zero/internal/api"
+	"github.com/KalebHawkins/zero/internal/check"
 	"github.com/KalebHawkins/zero/internal/config"
 	"github.com/KalebHawkins/zero/internal/workspace"
 )
@@ -29,6 +30,10 @@ type Env struct {
 	Sleep       func(time.Duration)    // waits between login polls
 	Now         func() time.Time
 	HTTP        *http.Client // nil: a client with the standard timeout
+
+	// Runner starts podman and go for a lab stage. nil: check.Exec. The
+	// tests replace it, so no test needs podman.
+	Runner check.Runner
 }
 
 // app is one invocation: the environment plus what the arguments said.

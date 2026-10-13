@@ -24,6 +24,19 @@ const (
 // CheckerGoTest is the checker that runs `go test -json ./...`.
 const CheckerGoTest = "go-test"
 
+// CheckerLab is the checker of a lab stage: its tests in lab/ build an image
+// with podman, run it, and read what it wrote.
+const CheckerLab = "lab"
+
+// The environment variables that carry a lab stage's names and base images
+// to its tests. ZERO_LAB_IMAGES holds the images separated by spaces.
+const (
+	EnvLabImage     = "ZERO_LAB_IMAGE"
+	EnvLabContainer = "ZERO_LAB_CONTAINER"
+	EnvLabVolume    = "ZERO_LAB_VOLUME"
+	EnvLabImages    = "ZERO_LAB_IMAGES"
+)
+
 // Messages the command writes into a Report for tests that produced no result.
 const (
 	MessageDidNotRun     = "this test did not run"
@@ -41,6 +54,25 @@ type Exercise struct {
 	Run     []string `json:"run"`
 	Tasks   []Task   `json:"tasks"`
 	Hints   []Hint   `json:"hints"`
+	// Lab is set only for a lab stage.
+	Lab *Lab `json:"lab,omitempty"`
+}
+
+// Lab is what a lab stage declares: the base images its Containerfile may
+// name, the only podman objects its tests may create, and how long the
+// tests may run, in seconds.
+type Lab struct {
+	Images  []string `json:"images"`
+	Names   LabNames `json:"names"`
+	Timeout int      `json:"timeout"`
+}
+
+// LabNames are the names of the image, the container and the volume of a
+// lab stage.
+type LabNames struct {
+	Image     string `json:"image"`
+	Container string `json:"container"`
+	Volume    string `json:"volume"`
 }
 
 // Task is one step of an exercise. It passes when all of its tests pass.

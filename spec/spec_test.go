@@ -68,6 +68,13 @@ func TestExamplesRoundTrip(t *testing.T) {
 			"project": { "id": "game-of-life", "title": "Game of Life", "stage": 4, "stages": 6,
 				"edit_all": ["internal/life/life.go"] },
 			"uses": [ { "exercise": "the-game-loop", "copy": [ { "from": "loop.go", "to": "cmd/life-window/loop.go" } ] } ] }`, &Saved{}},
+		"Lab stage": {`{ "id": "worldd-10", "title": "Running the server in a container", "lead": "One sentence.",
+			"minutes": 30, "checker": "lab", "edit": ["Containerfile"], "run": null,
+			"tasks": [ { "n": 1, "title": "Build the image", "text": "Plain text.", "tests": ["TestImageBuilds"] } ],
+			"hints": [],
+			"lab": { "images": ["docker.io/library/golang:1.27", "gcr.io/distroless/static-debian12:nonroot"],
+				"names": { "image": "zero-lab-worldd", "container": "zero-lab-worldd", "volume": "zero-lab-worldd-data" },
+				"timeout": 600 } }`, &Exercise{}},
 		"Submit answer with nothing next": {`{"passed": true, "next": null}`, &SubmitResponse{}},
 	} {
 		if err := json.Unmarshal([]byte(tc.in), tc.v); err != nil {

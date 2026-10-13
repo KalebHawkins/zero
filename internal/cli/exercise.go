@@ -191,10 +191,16 @@ func (a *app) exercise() (string, *spec.Saved, error) {
 // `zero submit` asked, so a pass does not end with "Run: zero submit".
 func (a *app) runTests(dir string, saved *spec.Saved, submitting bool) (spec.Report, error) {
 	ex := saved.Exercise
-	if ex.Checker != spec.CheckerGoTest {
+	var rep spec.Report
+	var err error
+	switch ex.Checker {
+	case spec.CheckerGoTest:
+		rep, err = check.GoTest(dir, ex, saved.Project != nil, a.Version, a.Now)
+	case spec.CheckerLab:
+		rep, err = a.runLab(dir, ex)
+	default:
 		return spec.Report{}, fail("This exercise uses the checker %q, which zero %s does not know. Install the newest zero.", ex.Checker, a.Version)
 	}
-	rep, err := check.GoTest(dir, ex, saved.Project != nil, a.Version, a.Now)
 	if errors.Is(err, check.ErrNoGo) {
 		return rep, fail("The go command was not found. Install Go, then run: zero doctor")
 	}

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/KalebHawkins/zero/internal/check"
 )
 
 // The hello-world exercise, copied from the platform's content folder.
@@ -77,6 +79,8 @@ type harness struct {
 	clock  time.Time
 	slept  []time.Duration
 	opened []string
+
+	runner check.Runner // starts podman and go for a lab stage; nil starts the real ones
 }
 
 func newHarness(t *testing.T) *harness {
@@ -129,7 +133,8 @@ func (h *harness) run(args ...string) (int, string, string) {
 			h.slept = append(h.slept, d)
 			h.clock = h.clock.Add(d)
 		},
-		Now: func() time.Time { return h.clock },
+		Now:    func() time.Time { return h.clock },
+		Runner: h.runner,
 	})
 	// Take the fake's lock once, so the test reads what the handlers wrote.
 	h.fake.mu.Lock()

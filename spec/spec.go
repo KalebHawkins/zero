@@ -49,6 +49,7 @@ type Exercise struct {
 	Title   string   `json:"title"`
 	Lead    string   `json:"lead"`
 	Minutes int      `json:"minutes"`
+	Subject string   `json:"subject,omitempty"`
 	Checker string   `json:"checker"`
 	Edit    []string `json:"edit"`
 	Run     []string `json:"run"`

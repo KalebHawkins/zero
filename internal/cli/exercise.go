@@ -368,8 +368,26 @@ func (a *app) submit() error {
 		return fail("The site did not accept the submission. Run zero test, then zero submit again.")
 	}
 	a.out.line("%s Submitted. %s is finished.", a.out.green(markPass), a.out.bold(saved.Exercise.Title))
+	if resp.Next == nil && saved.Exercise.Subject == "misc" {
+		a.out.line("%s", sideProjectDone(a.siteRoot()))
+		return nil
+	}
 	a.printNext(resp.Next)
 	return nil
+}
+
+// sideProjectDone is what submit says after the last item of a Misc unit,
+// which ends with no next item (docs/SPEC.md section 4 of the platform).
+func sideProjectDone(site string) string {
+	return "That was the last item of this side project. More side projects: " + site + "/misc/"
+}
+
+// siteRoot is the site's address from the settings, or a plain name for it.
+func (a *app) siteRoot() string {
+	if cfg, _ := a.settings(); cfg != nil && cfg.APIURL != "" {
+		return cfg.APIURL
+	}
+	return "the site"
 }
 
 func (a *app) next() error {

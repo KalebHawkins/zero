@@ -38,3 +38,11 @@ func TestPrintUsesSaysEachThingOnce(t *testing.T) {
 		t.Errorf("printUses names a zero use command; the Next block lists them:\n%s", out)
 	}
 }
+
+func TestSideProjectDone(t *testing.T) {
+	got := sideProjectDone("https://example.org/zero")
+	want := "That was the last item of this side project. More side projects: https://example.org/zero/misc/"
+	if got != want {
+		t.Errorf("sideProjectDone = %q, want %q", got, want)
+	}
+}
